@@ -162,7 +162,7 @@ to setup-people
   ask residences [
     sprout-citizens people-per-residence [
       set color magenta
-      set speed 2
+      set speed 0.2
       set residence patch-here
       set company   one-of companies with [capacity < people-per-company]
     ]
@@ -221,18 +221,18 @@ to commute
       let center-vertex one-of vertices-on patch-here
       let next-vertex one-of vertices-on first path
       let len distance center-vertex
-      if (len = 0) [
+      if (len < 0.00001) [  ;; floating point number precision
         ;; on the center-vertex
         face next-vertex
       ]
-      if (len = 0 or heading != towards center-vertex)[
+      if (len < 0.00001 or heading != towards center-vertex)[
         ;; in front of the center-vertex
         set len distance next-vertex
       ]
       ifelse (advance-distance > len)[
         fd len
         set advance-distance advance-distance - len
-        if (distance next-vertex = 0)[
+        if (distance next-vertex < 0.00001)[
           ;; arrived the next-vertex
           set path but-first path
         ]
