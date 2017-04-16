@@ -28,9 +28,10 @@ citizens-own[
   residence
   company
   time-remaining
-  ;; working
+  ;; game
   earning-power
   ;; transportation
+  trip-mode       ;; 1: car, 2: bus, 3: taxi
   path
   next-direction  ;; 1: straight, 2: turn right, 3: turn left
   turned?
@@ -184,7 +185,7 @@ to setup-people
       set company        one-of companies with [capacity < people-per-company]
       set time-remaining 0
       set earning-power  5
-      set turned?        false
+      set trip-mode      1
     ]
   ]
 end
@@ -243,94 +244,79 @@ to set-next-direction
 end
 
 to commute
-  ;; set destination
-  if (patch-here = residence)[
-    let source one-of vertices-on patch-here
-    let target one-of vertices-on company
-    set path find-path source target 1
-  ]
-  if (patch-here = company)[
-    let source one-of vertices-on patch-here
-    let target one-of vertices-on residence
-    set path find-path source target 1
-  ]
-
-  ;; depart for destination
-  if (patch-here = residence or patch-here = company)[
-    face first path
-    set-next-direction
-    ifelse next-direction = 2 [
-      fd 0.75  ;; turn right
-      rt 90
-    ][
-      fd 1.25  ;; turn left
-      lt 90
+  if trip-mode = 1[
+    ;; set destination
+    if (patch-here = residence)[
+      let source one-of vertices-on patch-here
+      let target one-of vertices-on company
+      set path find-path source target 1
     ]
-    set turned? true
-    set path but-first path
-    set-next-direction
-  ]
+    if (patch-here = company)[
+      let source one-of vertices-on patch-here
+      let target one-of vertices-on residence
+      set path find-path source target 1
+    ]
 
-  ;; advance
-  let advance-distance speed
-  while [advance-distance > 0 and length path > 1][
-    let current-vertex one-of vertices-on patch-here
-    let dis-cur distance current-vertex
-
-    let next-vertex    nobody
-    let prev-vertex    nobody
-    let dis-nxt        0
-    ifelse (patch-ahead 1 != nobody)[
-      set next-vertex  one-of vertices-on patch-ahead 1
-      set dis-nxt distance next-vertex
-    ][
-      set prev-vertex  one-of vertices-on patch-ahead -1
-      set dis-nxt distance prev-vertex
+    ;; depart for destination
+    if (patch-here = residence or patch-here = company)[
+      face first path
+      set-next-direction
+      ifelse next-direction = 2 [
+        fd 0.75  ;; turn right
+        rt 90
+      ][
+        fd 1.25  ;; turn left
+        lt 90
+      ]
+      set shape "car top"
+      set turned? true
+      set path but-first path
+      set-next-direction
     ]
 
     ;; advance
-    ifelse (turned?)[
-      let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 1 / 2)
-      if len < 0.00001 [set len 0.00001]
-      ifelse (advance-distance > len) [
-        fd len
-        set advance-distance advance-distance - len
+    let advance-distance speed
+    while [advance-distance > 0 and length path > 1][
+      let current-vertex one-of vertices-on patch-here
+      let dis-cur distance current-vertex
+
+      let next-vertex    nobody
+      let prev-vertex    nobody
+      let dis-nxt        0
+      ifelse (patch-ahead 1 != nobody)[
+        set next-vertex  one-of vertices-on patch-ahead 1
+        set dis-nxt distance next-vertex
       ][
-        fd advance-distance
-        set advance-distance 0
+        set prev-vertex  one-of vertices-on patch-ahead -1
+        set dis-nxt distance prev-vertex
       ]
-    ][
-      ;; go straight
-      ifelse (next-direction = 1) [
-        set turned? true
-        set-next-direction
-      ][
-        ;; turn right
-        ifelse(next-direction = 2)[
-          if (dis-cur > sqrt (1 / 8))[
-            let len (sqrt (dis-cur ^ 2 - 1 / 16) - 1 / 4)
-            if len < 0.00001 [set len 0.00001]
-            ifelse (advance-distance > len) [
-              fd len
-              set advance-distance advance-distance - len
-              rt 90  ;; turn right
-              set turned? true
-              set-next-direction
-            ][
-              fd advance-distance
-              set advance-distance 0
-            ]
-          ]
+
+      ;; advance
+      ifelse (turned?)[
+        let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 1 / 2)
+        if len < 0.00001 [set len 0.00001]
+        ifelse (advance-distance > len) [
+          fd len
+          set advance-distance advance-distance - len
         ][
-          ;; turn left
-          ifelse (next-vertex != nobody)[
-            if (dis-nxt > sqrt (5 / 8))[
-              let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 3 / 4)
+          fd advance-distance
+          set advance-distance 0
+        ]
+      ][
+        ;; go straight
+        ifelse (next-direction = 1) [
+          set turned? true
+          set-next-direction
+        ][
+          ;; turn right
+          ifelse(next-direction = 2)[
+            if (dis-cur > sqrt (1 / 8))[
+              let len (sqrt (dis-cur ^ 2 - 1 / 16) - 1 / 4)
               if len < 0.00001 [set len 0.00001]
               ifelse (advance-distance > len) [
                 fd len
                 set advance-distance advance-distance - len
-                lt 90  ;; turn right
+                rt 90  ;; turn right
                 set turned? true
                 set-next-direction
               ][
@@ -339,39 +325,59 @@ to commute
               ]
             ]
           ][
-            if (dis-nxt < sqrt (13 / 8))[
-              let len (5 / 4 - sqrt (dis-nxt ^ 2 - 1 / 16))
-              if len < 0.00001 [set len 0.00001]
-              ifelse (advance-distance > len) [
-                fd len
-                set advance-distance advance-distance - len
-                lt 90  ;; turn right
-                set turned? true
-                set-next-direction
-              ][
-                fd advance-distance
-                set advance-distance 0
+            ;; turn left
+            ifelse (next-vertex != nobody)[
+              if (dis-nxt > sqrt (5 / 8))[
+                let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 3 / 4)
+                if len < 0.00001 [set len 0.00001]
+                ifelse (advance-distance > len) [
+                  fd len
+                  set advance-distance advance-distance - len
+                  lt 90  ;; turn right
+                  set turned? true
+                  set-next-direction
+                ][
+                  fd advance-distance
+                  set advance-distance 0
+                ]
+              ]
+            ][
+              if (dis-nxt < sqrt (13 / 8))[
+                let len (5 / 4 - sqrt (dis-nxt ^ 2 - 1 / 16))
+                if len < 0.00001 [set len 0.00001]
+                ifelse (advance-distance > len) [
+                  fd len
+                  set advance-distance advance-distance - len
+                  lt 90  ;; turn right
+                  set turned? true
+                  set-next-direction
+                ][
+                  fd advance-distance
+                  set advance-distance 0
+                ]
               ]
             ]
-          ]
 
+          ]
         ]
+      ]
+
+      ;; on the next patch
+      if (one-of vertices-on patch-here != current-vertex)[
+        set turned? false
+        set path but-first path
       ]
     ]
 
-    ;; on the next patch
-    if (one-of vertices-on patch-here != current-vertex)[
-      set turned? false
-      set path but-first path
+    ;; arrived at the destination
+    if (length path = 1)[
+      move-to first path
+      set shape "person business"
+      set path []
+      set time-remaining duration
     ]
   ]
 
-  ;; arrived at the destination
-  if (length path = 1)[
-    move-to first path
-    set path []
-    set time-remaining duration
-  ]
 end
 
 to stay
@@ -628,6 +634,21 @@ Circle -16777216 true false 30 180 90
 Polygon -16777216 true false 162 80 132 78 134 135 209 135 194 105 189 96 180 89
 Circle -7500403 true true 47 195 58
 Circle -7500403 true true 195 195 58
+
+car top
+true
+0
+Polygon -7500403 true true 151 8 119 10 98 25 86 48 82 225 90 270 105 289 150 294 195 291 210 270 219 225 214 47 201 24 181 11
+Polygon -16777216 true false 210 195 195 210 195 135 210 105
+Polygon -16777216 true false 105 255 120 270 180 270 195 255 195 225 105 225
+Polygon -16777216 true false 90 195 105 210 105 135 90 105
+Polygon -1 true false 205 29 180 30 181 11
+Line -7500403 false 210 165 195 165
+Line -7500403 false 90 165 105 165
+Polygon -16777216 true false 121 135 180 134 204 97 182 89 153 85 120 89 98 97
+Line -16777216 false 210 90 195 30
+Line -16777216 false 90 90 105 30
+Polygon -1 true false 95 29 120 30 119 11
 
 circle
 false
