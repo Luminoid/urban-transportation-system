@@ -11,6 +11,9 @@ globals[
   people-per-company
   people-per-residence
   duration
+  walk-speed
+  car-speed
+  bus-speed
   ;; patch-set
   roads
   intersections
@@ -28,6 +31,7 @@ citizens-own[
   residence
   company
   time-remaining
+  has-car?
   ;; game
   earning-power
   ;; transportation
@@ -77,6 +81,9 @@ to setup-config
   set people-per-company   5
   set people-per-residence 1
   set duration             50
+  set walk-speed           0.05
+  set car-speed            0.99
+  set bus-speed            0.49
 end
 
 to setup-globals
@@ -179,13 +186,18 @@ to setup-people
   set-default-shape citizens "person business"
   ask residences [
     sprout-citizens people-per-residence [
-      set color          magenta
-      set speed          0.2
+      set speed          walk-speed
       set residence      patch-here
       set company        one-of companies with [capacity < people-per-company]
       set time-remaining 0
       set earning-power  5
-      set trip-mode      1
+      ifelse random 100 < 50 [
+        set has-car? true
+        set color    magenta
+      ][
+        set has-car? false
+        set color    cyan
+      ]
     ]
   ]
 end
@@ -243,8 +255,110 @@ to set-next-direction
   ]
 end
 
+to advance
+  let advance-distance speed
+  while [advance-distance > 0 and length path > 1][
+    let current-vertex one-of vertices-on patch-here
+    let dis-cur distance current-vertex
+
+    let next-vertex    nobody
+    let prev-vertex    nobody
+    let dis-nxt        0
+    ifelse (patch-ahead 1 != nobody)[
+      set next-vertex  one-of vertices-on patch-ahead 1
+      set dis-nxt distance next-vertex
+    ][
+      set prev-vertex  one-of vertices-on patch-ahead -1
+      set dis-nxt distance prev-vertex
+    ]
+
+    ;; advance
+    ifelse (turned?)[
+      let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 1 / 2)
+      if len < 0.00001 [set len 0.00001]
+      ifelse (advance-distance > len) [
+        fd len
+        set advance-distance advance-distance - len
+      ][
+        fd advance-distance
+        set advance-distance 0
+      ]
+    ][
+      ;; go straight
+      ifelse (next-direction = 1) [
+        set turned? true
+        set-next-direction
+      ][
+        ;; turn right
+        ifelse(next-direction = 2)[
+          if (dis-cur > sqrt (1 / 8))[
+            let len (sqrt (dis-cur ^ 2 - 1 / 16) - 1 / 4)
+            if len < 0.00001 [set len 0.00001]
+            ifelse (advance-distance > len) [
+              fd len
+              set advance-distance advance-distance - len
+              rt 90  ;; turn right
+              set turned? true
+              set-next-direction
+            ][
+              fd advance-distance
+              set advance-distance 0
+            ]
+          ]
+        ][
+          ;; turn left
+          ifelse (next-vertex != nobody)[
+            if (dis-nxt > sqrt (5 / 8))[
+              let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 3 / 4)
+              if len < 0.00001 [set len 0.00001]
+              ifelse (advance-distance > len) [
+                fd len
+                set advance-distance advance-distance - len
+                lt 90  ;; turn right
+                set turned? true
+                set-next-direction
+              ][
+                fd advance-distance
+                set advance-distance 0
+              ]
+            ]
+          ][
+            if (dis-nxt < sqrt (13 / 8))[
+              let len (5 / 4 - sqrt (dis-nxt ^ 2 - 1 / 16))
+              if len < 0.00001 [set len 0.00001]
+              ifelse (advance-distance > len) [
+                fd len
+                set advance-distance advance-distance - len
+                lt 90  ;; turn right
+                set turned? true
+                set-next-direction
+              ][
+                fd advance-distance
+                set advance-distance 0
+              ]
+            ]
+          ]
+
+        ]
+      ]
+    ]
+
+    ;; on the next patch
+    if (one-of vertices-on patch-here != current-vertex)[
+      set turned? false
+      set path but-first path
+    ]
+  ]
+end
+
 to commute
+  ifelse(has-car?)[
+    set trip-mode 1
+  ][
+    set trip-mode 2
+  ]
   if trip-mode = 1[
+    set speed car-speed
     ;; set destination
     if (patch-here = residence)[
       let source one-of vertices-on patch-here
@@ -275,99 +389,49 @@ to commute
     ]
 
     ;; advance
-    let advance-distance speed
-    while [advance-distance > 0 and length path > 1][
-      let current-vertex one-of vertices-on patch-here
-      let dis-cur distance current-vertex
+    advance
 
-      let next-vertex    nobody
-      let prev-vertex    nobody
-      let dis-nxt        0
-      ifelse (patch-ahead 1 != nobody)[
-        set next-vertex  one-of vertices-on patch-ahead 1
-        set dis-nxt distance next-vertex
-      ][
-        set prev-vertex  one-of vertices-on patch-ahead -1
-        set dis-nxt distance prev-vertex
-      ]
-
-      ;; advance
-      ifelse (turned?)[
-        let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 1 / 2)
-        if len < 0.00001 [set len 0.00001]
-        ifelse (advance-distance > len) [
-          fd len
-          set advance-distance advance-distance - len
-        ][
-          fd advance-distance
-          set advance-distance 0
-        ]
-      ][
-        ;; go straight
-        ifelse (next-direction = 1) [
-          set turned? true
-          set-next-direction
-        ][
-          ;; turn right
-          ifelse(next-direction = 2)[
-            if (dis-cur > sqrt (1 / 8))[
-              let len (sqrt (dis-cur ^ 2 - 1 / 16) - 1 / 4)
-              if len < 0.00001 [set len 0.00001]
-              ifelse (advance-distance > len) [
-                fd len
-                set advance-distance advance-distance - len
-                rt 90  ;; turn right
-                set turned? true
-                set-next-direction
-              ][
-                fd advance-distance
-                set advance-distance 0
-              ]
-            ]
-          ][
-            ;; turn left
-            ifelse (next-vertex != nobody)[
-              if (dis-nxt > sqrt (5 / 8))[
-                let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 3 / 4)
-                if len < 0.00001 [set len 0.00001]
-                ifelse (advance-distance > len) [
-                  fd len
-                  set advance-distance advance-distance - len
-                  lt 90  ;; turn right
-                  set turned? true
-                  set-next-direction
-                ][
-                  fd advance-distance
-                  set advance-distance 0
-                ]
-              ]
-            ][
-              if (dis-nxt < sqrt (13 / 8))[
-                let len (5 / 4 - sqrt (dis-nxt ^ 2 - 1 / 16))
-                if len < 0.00001 [set len 0.00001]
-                ifelse (advance-distance > len) [
-                  fd len
-                  set advance-distance advance-distance - len
-                  lt 90  ;; turn right
-                  set turned? true
-                  set-next-direction
-                ][
-                  fd advance-distance
-                  set advance-distance 0
-                ]
-              ]
-            ]
-
-          ]
-        ]
-      ]
-
-      ;; on the next patch
-      if (one-of vertices-on patch-here != current-vertex)[
-        set turned? false
-        set path but-first path
-      ]
+    ;; arrived at the destination
+    if (length path = 1)[
+      move-to first path
+      set shape "person business"
+      set path []
+      set time-remaining duration
     ]
+  ]
+  if trip-mode = 2[
+    set speed walk-speed
+    ;; set destination
+    if (patch-here = residence)[
+      let source one-of vertices-on patch-here
+      let target one-of vertices-on company
+      set path find-path source target 2
+    ]
+    if (patch-here = company)[
+      let source one-of vertices-on patch-here
+      let target one-of vertices-on residence
+      set path find-path source target 2
+    ]
+
+    ;; depart for destination
+    if (patch-here = residence or patch-here = company)[
+      face first path
+      set-next-direction
+      ifelse next-direction = 2 [
+        fd 0.75  ;; turn right
+        rt 90
+      ][
+        fd 1.25  ;; turn left
+        lt 90
+      ]
+      set shape "person business"
+      set turned? true
+      set path but-first path
+      set-next-direction
+    ]
+
+    ;; advance
+    advance
 
     ;; arrived at the destination
     if (length path = 1)[
@@ -436,7 +500,14 @@ to dijkstra [source target mode] ;; mode: 1: car 2: bus 3: taxi
     let patch-u [patch-here] of u
     if ([land-type] of patch-u = "road" or u = source or u = target)[
       ask [link-neighbors] of u [
-        relax u self (edge [who] of u [who] of self)
+        let edge-btw edge [who] of u [who] of self
+        ifelse ([bus-route?] of edge-btw = true)[
+          if (mode = 2) [
+            relax u self edge-btw
+          ]
+        ][
+            relax u self edge-btw
+        ]
       ]
     ]
   ]
