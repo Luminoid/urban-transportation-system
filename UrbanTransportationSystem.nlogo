@@ -23,6 +23,8 @@ citizens-own[
   residence
   company
   path
+  next-direction  ;; 1: straight, 2: turn right, 3: turn left
+  turned?
 ]
 
 patches-own[
@@ -165,6 +167,7 @@ to setup-people
       set speed 0.2
       set residence patch-here
       set company   one-of companies with [capacity < people-per-company]
+      set turned? false
     ]
   ]
 end
@@ -194,6 +197,34 @@ end
 ;; Action
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; turtle procedure
+to set-next-direction
+  let current-vertex one-of vertices-on patch-here
+  let next-vertex    one-of vertices-on first path
+  let third-vertex   one-of vertices-on item 1 path
+
+  ;; get the following direction
+  let direction-turn 0
+  ask next-vertex [
+    let direction-1 towards current-vertex
+    let direction-2 towards third-vertex
+    set direction-turn direction-2 - direction-1
+  ]
+  ifelse (direction-turn = -90 or direction-turn = 270)[
+    set next-direction 2
+  ][
+    ifelse (direction-turn = 90 or direction-turn = -270)[
+      set next-direction 3
+    ][
+      ifelse (direction-turn = 180 or direction-turn = -180)[
+        set next-direction 1
+      ][
+        set next-direction 0
+      ]
+    ]
+  ]
+end
+
 to commute
   ask citizens [
     ;; set destination
@@ -211,41 +242,117 @@ to commute
     ;; depart for destination
     if (patch-here = residence or patch-here = company)[
       face first path
-      fd 1
+      set-next-direction
+      ifelse next-direction = 2 [
+        fd 0.75  ;; turn right
+        rt 90
+      ][
+        fd 1.25  ;; turn left
+        lt 90
+      ]
+      set turned? true
       set path but-first path
+      set-next-direction
     ]
 
     ;; advance
     let advance-distance speed
     while [advance-distance > 0 and length path > 1][
-      let center-vertex one-of vertices-on patch-here
-      let next-vertex one-of vertices-on first path
-      let len distance center-vertex
-      if (len < 0.00001) [  ;; floating point number precision
-        ;; on the center-vertex
-        face next-vertex
+      let current-vertex one-of vertices-on patch-here
+      let dis-cur distance current-vertex
+
+      let next-vertex    nobody
+      let prev-vertex    nobody
+      let dis-nxt        0
+      ifelse (patch-ahead 1 != nobody)[
+        set next-vertex  one-of vertices-on patch-ahead 1
+        set dis-nxt distance next-vertex
+      ][
+        set prev-vertex  one-of vertices-on patch-ahead -1
+        set dis-nxt distance prev-vertex
       ]
-      if (len < 0.00001 or heading != towards center-vertex)[
-        ;; in front of the center-vertex
-        set len distance next-vertex
-      ]
-      ifelse (advance-distance > len)[
-        fd len
-        set advance-distance advance-distance - len
-        if (distance next-vertex < 0.00001)[
-          ;; arrived the next-vertex
-          set path but-first path
+
+      ;; advance
+      ifelse (turned?)[
+        let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 1 / 2)
+        if len < 0.00001 [set len 0.00001]
+        ifelse (advance-distance > len) [
+          fd len
+          set advance-distance advance-distance - len
+        ][
+          fd advance-distance
+          set advance-distance 0
         ]
       ][
-        fd advance-distance
-        set advance-distance 0
+        ;; go straight
+        ifelse (next-direction = 1) [
+          set turned? true
+          set-next-direction
+        ][
+          ;; turn right
+          ifelse(next-direction = 2)[
+            if (dis-cur > sqrt (1 / 8))[
+              let len (sqrt (dis-cur ^ 2 - 1 / 16) - 1 / 4)
+              if len < 0.00001 [set len 0.00001]
+              ifelse (advance-distance > len) [
+                fd len
+                set advance-distance advance-distance - len
+                rt 90  ;; turn right
+                set turned? true
+                set-next-direction
+              ][
+                fd advance-distance
+                set advance-distance 0
+              ]
+            ]
+          ][
+            ;; turn left
+            ifelse (next-vertex != nobody)[
+              if (dis-nxt > sqrt (5 / 8))[
+                let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 3 / 4)
+                if len < 0.00001 [set len 0.00001]
+                ifelse (advance-distance > len) [
+                  fd len
+                  set advance-distance advance-distance - len
+                  lt 90  ;; turn right
+                  set turned? true
+                  set-next-direction
+                ][
+                  fd advance-distance
+                  set advance-distance 0
+                ]
+              ]
+            ][
+              if (dis-nxt < sqrt (13 / 8))[
+                let len (5 / 4 - sqrt (dis-nxt ^ 2 - 1 / 16))
+                if len < 0.00001 [set len 0.00001]
+                ifelse (advance-distance > len) [
+                  fd len
+                  set advance-distance advance-distance - len
+                  lt 90  ;; turn right
+                  set turned? true
+                  set-next-direction
+                ][
+                  fd advance-distance
+                  set advance-distance 0
+                ]
+              ]
+            ]
+
+          ]
+        ]
+      ]
+
+      ;; on the next patch
+      if (one-of vertices-on patch-here != current-vertex)[
+        set turned? false
+        set path but-first path
       ]
     ]
 
     ;; arrived at the destination
     if (length path = 1)[
-      face first path
-      fd 1
+      move-to first path
       set path []
     ]
   ]
@@ -305,10 +412,10 @@ to-report find-path [source target mode]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-402
-13
-998
-610
+127
+10
+723
+607
 -1
 -1
 12.0
@@ -334,7 +441,7 @@ ticks
 BUTTON
 15
 16
-81
+70
 49
 NIL
 setup
@@ -366,10 +473,10 @@ NIL
 1
 
 BUTTON
-18
-115
-81
-148
+16
+113
+79
+146
 NIL
 go
 NIL
