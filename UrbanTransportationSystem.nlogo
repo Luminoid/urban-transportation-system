@@ -11,9 +11,12 @@ globals[
   people-per-company
   people-per-residence
   duration
+  ;; transportation
   walk-speed
   car-speed
   bus-speed
+  ;; game parameter
+  money
   ;; patch-set
   roads
   intersections
@@ -22,8 +25,8 @@ globals[
   company-district
   residences
   companies
-  ;; game parameter
-  money
+  ;; interaction
+  mouse-was-down?
 ]
 
 citizens-own[
@@ -84,10 +87,12 @@ to setup-config
   set walk-speed           0.05
   set car-speed            0.99
   set bus-speed            0.49
+
 end
 
 to setup-globals
-  set money 0
+  set money                0
+  set mouse-was-down?      false
 end
 
 to setup-patches
@@ -463,7 +468,24 @@ end
 
 to go
   move
+  mouse-manager
   tick
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Interaction
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to-report mouse-clicked?
+  report (mouse-was-down? = true and not mouse-down?)
+end
+
+to mouse-manager
+  let mouse-is-down? mouse-down?
+  if mouse-clicked? [
+    print "aaa"
+  ]
+  set mouse-was-down? mouse-is-down?
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -604,9 +626,9 @@ NIL
 
 MONITOR
 16
-172
+158
 73
-217
+203
 NIL
 money
 17
