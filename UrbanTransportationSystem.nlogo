@@ -1,6 +1,9 @@
 breed [citizens citizen]
+breed [buses bus]
+breed [mapping-buses mapping-bus]
 breed [vertices vertex]
 undirected-link-breed [edges edge]
+undirected-link-breed [bus-links bus-link]
 
 globals[
   ;; configuration
@@ -10,7 +13,8 @@ globals[
   initial-people-num
   people-per-company
   people-per-residence
-  duration
+  event-duration           ;; work and rest
+  bus-duration             ;; wait
   ;; transportation
   walk-speed
   car-speed
@@ -27,6 +31,8 @@ globals[
   companies
   ;; interaction
   mouse-was-down?
+  global-origin-station    ;; patch
+  global-terminal-station  ;; patch
 ]
 
 citizens-own[
@@ -38,17 +44,27 @@ citizens-own[
   ;; game
   earning-power
   ;; transportation
-  trip-mode       ;; 1: car, 2: bus, 3: taxi
+  trip-mode                ;; 1: car, 2: bus, 3: taxi
   path
-  next-direction  ;; 1: straight, 2: turn right, 3: turn left
+  next-direction           ;; 1: straight, 2: turn right, 3: turn left
   turned?
+  advance-distance
+]
+
+buses-own [
+  speed
+  origin-station           ;; vertex
+  terminal-station         ;; vertex
+  ;; transportation
+  path
+  advance-distance
 ]
 
 patches-own[
-  land-type
+  land-type                ;; land, road, bus-stop, residence, company, idle-estate
   intersection?
-  green-light-on? ;; land-type = "road"
-  capacity        ;; land-type = "residence" or "company"
+  green-light-on?          ;; land-type = "road"
+  capacity                 ;; land-type = "residence" or "company"
 ]
 
 vertices-own [
@@ -83,11 +99,11 @@ to setup-config
   set initial-people-num   20
   set people-per-company   5
   set people-per-residence 1
-  set duration             50
+  set event-duration       50
+  set bus-duration         2
   set walk-speed           0.05
   set car-speed            0.99
   set bus-speed            0.49
-
 end
 
 to setup-globals
@@ -191,11 +207,12 @@ to setup-people
   set-default-shape citizens "person business"
   ask residences [
     sprout-citizens people-per-residence [
-      set speed          walk-speed
-      set residence      patch-here
-      set company        one-of companies with [capacity < people-per-company]
-      set time-remaining 0
-      set earning-power  5
+      set speed            walk-speed
+      set residence        patch-here
+      set company          one-of companies with [capacity < people-per-company]
+      set time-remaining   0
+      set earning-power    5
+      set advance-distance 0
       ifelse random 100 < 50 [
         set has-car? true
         set color    magenta
@@ -221,7 +238,7 @@ to setup-map
   ;; initialize edges
   ask vertices [
     create-edges-with vertices-on neighbors4 with [land-type = "road"][
-    ;;  hide-link  ;; debug
+      set shape "dotted"
       set bus-route? false
       set cost 10
     ]
@@ -229,7 +246,7 @@ to setup-map
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Action
+;; Transportation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; turtle procedure
@@ -260,8 +277,18 @@ to set-next-direction
   ]
 end
 
-to advance
-  let advance-distance speed
+to advance [len]
+  ifelse (advance-distance > len) [
+    fd len
+    set advance-distance advance-distance - len
+  ][
+    fd advance-distance
+    set advance-distance 0
+  ]
+end
+
+to advance-and-turn
+  set advance-distance speed
   while [advance-distance > 0 and length path > 1][
     let current-vertex one-of vertices-on patch-here
     let dis-cur distance current-vertex
@@ -281,13 +308,7 @@ to advance
     ifelse (turned?)[
       let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 1 / 2)
       if len < 0.00001 [set len 0.00001]
-      ifelse (advance-distance > len) [
-        fd len
-        set advance-distance advance-distance - len
-      ][
-        fd advance-distance
-        set advance-distance 0
-      ]
+      advance len
     ][
       ;; go straight
       ifelse (next-direction = 1) [
@@ -356,13 +377,8 @@ to advance
   ]
 end
 
-to commute
-  ifelse(has-car?)[
-    set trip-mode 1
-  ][
-    set trip-mode 2
-  ]
-  if trip-mode = 1[
+to commute [mode]
+  if mode = 1[
     set speed car-speed
     ;; set destination
     if (patch-here = residence)[
@@ -394,17 +410,17 @@ to commute
     ]
 
     ;; advance
-    advance
+    advance-and-turn
 
     ;; arrived at the destination
     if (length path = 1)[
       move-to first path
       set shape "person business"
       set path []
-      set time-remaining duration
+      set time-remaining event-duration
     ]
   ]
-  if trip-mode = 2[
+  if mode = 2[
     set speed walk-speed
     ;; set destination
     if (patch-here = residence)[
@@ -436,14 +452,53 @@ to commute
     ]
 
     ;; advance
-    advance
+    advance-and-turn
 
     ;; arrived at the destination
     if (length path = 1)[
       move-to first path
       set shape "person business"
       set path []
-      set time-remaining duration
+      set time-remaining event-duration
+    ]
+  ]
+end
+
+;; Bus Procedure
+to move-forward
+  set speed bus-speed
+  set advance-distance speed
+  while [advance-distance > 0 and length path > 1] [
+    let next-vertex first path
+    if (distance next-vertex < 0.00001) [
+      set path but-first path
+;      face first path
+      rt ((towards first path - heading) mod 360)
+      set next-vertex first path
+    ]
+    advance distance next-vertex
+  ]
+
+  if (length path = 1)[
+    while [advance-distance > 0 and length path = 1][
+      let next-vertex first path
+      ifelse (distance next-vertex < 0.00001) [  ;; arrived at destination
+        set path []
+        lt 180
+        ;; set destination
+        if (patch-here = [patch-here] of origin-station)[
+          let source one-of vertices-on patch-here
+          let target one-of vertices-on terminal-station
+          set path find-path source target 4
+        ]
+        if (patch-here = [patch-here] of terminal-station)[
+          let source one-of vertices-on patch-here
+          let target one-of vertices-on origin-station
+          set path find-path source target 4
+        ]
+      ][
+        advance distance next-vertex
+      ]
     ]
   ]
 
@@ -459,10 +514,17 @@ end
 to move
   ask citizens [
     ifelse (time-remaining = 0)[
-      commute
+      ifelse(has-car?)[
+        commute 1
+      ][
+        commute 2
+      ]
     ][
       stay
     ]
+  ]
+  ask buses [
+    move-forward
   ]
 end
 
@@ -476,6 +538,60 @@ end
 ;; Interaction
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+to add-bus-stop
+  ;; setup
+  ask global-origin-station [
+    set land-type "bus-stop"
+  ]
+  ask global-terminal-station [
+    set land-type "bus-stop"
+  ]
+  let origin-station-vertex   one-of vertices-on global-origin-station
+  let terminal-station-vertex one-of vertices-on global-terminal-station
+  ;; Create bus line
+  let bus-path find-path origin-station-vertex terminal-station-vertex 1
+  let bus-line filter [ [node] ->
+    ([intersection?] of [patch-here] of node = true) or
+    node = terminal-station-vertex
+  ] bus-path
+  set bus-line fput origin-station-vertex bus-line
+  let i 0
+  while [i < length bus-line - 1][
+    ask item i bus-line [
+      create-edge-with item (i + 1) bus-line [
+        set bus-route? true
+        set cost length bus-line
+        set color orange
+      ]
+    ]
+    set i i + 1
+  ]
+  ;; Create bus
+  ask global-origin-station [
+    let bus-heading 0
+    let controller nobody
+    sprout-buses 1 [
+      set origin-station   origin-station-vertex
+      set terminal-station terminal-station-vertex
+      set path but-first bus-line
+      face first path
+      set bus-heading heading
+      set controller self
+      hide-turtle  ;; debug
+    ]
+    sprout-mapping-buses 1 [
+      set shape "bus"
+      set color orange
+      set size 1.5
+      set heading bus-heading
+      rt 90
+      fd 0.25
+      lt 90
+      create-bus-link-with controller [tie]
+    ]
+  ]
+end
+
 to-report mouse-clicked?
   report (mouse-was-down? = true and not mouse-down?)
 end
@@ -483,7 +599,21 @@ end
 to mouse-manager
   let mouse-is-down? mouse-down?
   if mouse-clicked? [
-    print "aaa"
+    let patch-clicked patch round mouse-xcor round mouse-ycor
+    print "clicked!"
+    if ([land-type] of patch-clicked = "road")[
+      ifelse (not is-patch? global-origin-station) [
+        set global-origin-station patch-clicked
+        print global-origin-station
+      ][
+        if (patch-clicked != global-origin-station)[
+          set global-terminal-station patch-clicked
+          add-bus-stop
+          set global-origin-station  nobody
+          set global-terminal-station nobody
+        ]
+      ]
+    ]
   ]
   set mouse-was-down? mouse-is-down?
 end
@@ -513,7 +643,7 @@ to relax [u v w]
   ]
 end
 
-to dijkstra [source target mode] ;; mode: 1: car 2: bus 3: taxi
+to dijkstra [source target mode] ;; mode: 1: take car, 2: take bus, 3: take taxi, 4: bus route
   initialize-single-source source
   let Q vertices
   while [any? Q][
@@ -523,12 +653,18 @@ to dijkstra [source target mode] ;; mode: 1: car 2: bus 3: taxi
     if ([land-type] of patch-u = "road" or u = source or u = target)[
       ask [link-neighbors] of u [
         let edge-btw edge [who] of u [who] of self
-        ifelse ([bus-route?] of edge-btw = true)[
-          if (mode = 2) [
+        ifelse (mode = 4)[       ;; bus route
+          if ([bus-route?] of edge-btw = true)[
             relax u self edge-btw
           ]
-        ][
+        ][                       ;; people commuting
+          ifelse ([bus-route?] of edge-btw = true)[
+            if (mode = 2) [
+              relax u self edge-btw
+            ]
+          ][
             relax u self edge-btw
+          ]
         ]
       ]
     ]
@@ -705,6 +841,25 @@ Circle -7500403 true true 110 127 80
 Circle -7500403 true true 110 75 80
 Line -7500403 true 150 100 80 30
 Line -7500403 true 150 100 220 30
+
+bus
+true
+0
+Polygon -7500403 true true 206 285 150 285 120 285 105 270 105 30 120 15 135 15 206 15 210 30 210 270
+Rectangle -16777216 true false 126 69 159 264
+Line -7500403 true 135 240 165 240
+Line -7500403 true 120 240 165 240
+Line -7500403 true 120 210 165 210
+Line -7500403 true 120 180 165 180
+Line -7500403 true 120 150 165 150
+Line -7500403 true 120 120 165 120
+Line -7500403 true 120 90 165 90
+Line -7500403 true 135 60 165 60
+Rectangle -16777216 true false 174 15 182 285
+Circle -16777216 true false 187 210 42
+Rectangle -16777216 true false 127 24 205 60
+Circle -16777216 true false 187 63 42
+Line -7500403 true 120 43 207 43
 
 butterfly
 true
@@ -983,6 +1138,27 @@ Polygon -10899396 true false 132 85 134 64 107 51 108 17 150 2 192 18 192 52 169
 Polygon -10899396 true false 85 204 60 233 54 254 72 266 85 252 107 210
 Polygon -7500403 true true 119 75 179 75 209 101 224 135 220 225 175 261 128 261 81 224 74 135 88 99
 
+van top
+true
+0
+Polygon -7500403 true true 90 117 71 134 228 133 210 117
+Polygon -7500403 true true 150 8 118 10 96 17 85 30 84 264 89 282 105 293 149 294 192 293 209 282 215 265 214 31 201 17 179 10
+Polygon -16777216 true false 94 129 105 120 195 120 204 128 180 150 120 150
+Polygon -16777216 true false 90 270 105 255 105 150 90 135
+Polygon -16777216 true false 101 279 120 286 180 286 198 281 195 270 105 270
+Polygon -16777216 true false 210 270 195 255 195 150 210 135
+Polygon -1 true false 201 16 201 26 179 20 179 10
+Polygon -1 true false 99 16 99 26 121 20 121 10
+Line -16777216 false 130 14 168 14
+Line -16777216 false 130 18 168 18
+Line -16777216 false 130 11 168 11
+Line -16777216 false 185 29 194 112
+Line -16777216 false 115 29 106 112
+Line -7500403 false 210 180 195 180
+Line -7500403 false 195 225 210 240
+Line -7500403 false 105 225 90 240
+Line -7500403 false 90 180 105 180
+
 wheel
 false
 0
@@ -1019,6 +1195,17 @@ default
 0.0
 -0.2 0 0.0 1.0
 0.0 1 1.0 0.0
+0.2 0 0.0 1.0
+link direction
+true
+0
+Line -7500403 true 150 150 90 180
+Line -7500403 true 150 150 210 180
+
+dotted
+0.0
+-0.2 0 0.0 1.0
+0.0 1 4.0 4.0
 0.2 0 0.0 1.0
 link direction
 true
