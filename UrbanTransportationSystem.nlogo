@@ -1,24 +1,31 @@
 breed [citizens citizen]
+breed [mapping-citizens mapping-citizen]
 breed [buses bus]
 breed [mapping-buses mapping-bus]
 breed [vertices vertex]
 undirected-link-breed [edges edge]
-undirected-link-breed [bus-links bus-link]
+undirected-link-breed [map-links map-link]
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Variables
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 globals[
   ;; configuration
   district-width
   district-length
-  acceleration
   initial-people-num
   people-per-company
   people-per-residence
-  event-duration           ;; work and rest
-  bus-duration             ;; wait
+  ;; interaction
+  mouse-was-down?
   ;; transportation
-  walk-speed
-  car-speed
-  bus-speed
+  person-speed             ;; person
+  car-speed                ;; car
+  bus-speed                ;; bus
+  acceleration
+  event-duration           ;; person: work and rest
+  bus-duration             ;; bus: wait
   ;; game parameter
   money
   ;; patch-set
@@ -29,35 +36,37 @@ globals[
   company-district
   residences
   companies
-  ;; interaction
-  mouse-was-down?
-  global-origin-station    ;; patch
-  global-terminal-station  ;; patch
+  ;; patch
+  global-origin-station
+  global-terminal-station
 ]
 
 citizens-own[
-  speed
+  ;; basic
   residence
   company
-  time-remaining
   has-car?
   ;; game
   earning-power
   ;; transportation
   trip-mode                ;; 1: car, 2: bus, 3: taxi
+  speed
   path
-  next-direction           ;; 1: straight, 2: turn right, 3: turn left
-  turned?
   advance-distance
+  still?
+  time
 ]
 
 buses-own [
-  speed
   origin-station           ;; vertex
   terminal-station         ;; vertex
   ;; transportation
+  trip-mode                ;; mode
+  speed
   path
   advance-distance
+  still?
+  time
 ]
 
 patches-own[
@@ -87,28 +96,28 @@ to setup
   setup-globals
   setup-patches
   setup-estates
-  setup-people
   setup-map
+  setup-citizens
   reset-ticks
 end
 
 to setup-config
   set district-width       7
   set district-length      7
-  set acceleration         0.099
-  set initial-people-num   20
+  set initial-people-num   0      ;; TODO 20
   set people-per-company   5
   set people-per-residence 1
-  set event-duration       50
-  set bus-duration         2
-  set walk-speed           0.05
-  set car-speed            0.99
-  set bus-speed            0.49
+  set mouse-was-down?      false
 end
 
 to setup-globals
+  set person-speed         0.05
+  set car-speed            0.99
+  set bus-speed            0.49
+  set acceleration         0.099
+  set event-duration       50
+  set bus-duration         2
   set money                0
-  set mouse-was-down?      false
 end
 
 to setup-patches
@@ -203,27 +212,6 @@ to setup-estates
   ]
 end
 
-to setup-people
-  set-default-shape citizens "person business"
-  ask residences [
-    sprout-citizens people-per-residence [
-      set speed            walk-speed
-      set residence        patch-here
-      set company          one-of companies with [capacity < people-per-company]
-      set time-remaining   0
-      set earning-power    5
-      set advance-distance 0
-      ifelse random 100 < 50 [
-        set has-car? true
-        set color    magenta
-      ][
-        set has-car? false
-        set color    cyan
-      ]
-    ]
-  ]
-end
-
 to setup-map
   ;; initialize vertices
   ask roads [
@@ -245,37 +233,69 @@ to setup-map
   ]
 end
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Transportation
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to setup-citizens
+  set-default-shape citizens "person business"
+  ask residences [
+    sprout-citizens people-per-residence [
+      ;; set company
+      let my-company one-of companies with [capacity < people-per-company]
+      ask my-company [ set capacity capacity + 1 ]
 
-;; turtle procedure
-to set-next-direction
-  let current-vertex one-of vertices-on patch-here
-  let next-vertex    one-of vertices-on first path
-  let third-vertex   one-of vertices-on item 1 path
+      ;; set basic properties
+      set residence         one-of vertices-on patch-here
+      set company           one-of vertices-on my-company
+      set earning-power     5
 
-  ;; get the following direction
-  let direction-turn 0
-  ask next-vertex [
-    let direction-1 towards current-vertex
-    let direction-2 towards third-vertex
-    set direction-turn direction-2 - direction-1
-  ]
-  ifelse (direction-turn = -90 or direction-turn = 270)[
-    set next-direction 2
-  ][
-    ifelse (direction-turn = 90 or direction-turn = -270)[
-      set next-direction 3
-    ][
-      ifelse (direction-turn = 180 or direction-turn = -180)[
-        set next-direction 1
+      ;; set has-car?
+      ifelse random 100 < 50 [
+        set has-car? true
+        set color    magenta
       ][
-        set next-direction 0
+        set has-car? false
+        set color    cyan
       ]
+
+      ;; set transportation properties
+      set speed             person-speed
+      set advance-distance  0
+      set still?            false
+      set time              0
+
+      ;; set trip-mode
+      set-trip-mode
+
+      ;; set path
+      set path find-path residence company trip-mode
+
+      ;; hatch mapping person
+      let residence-heading 0
+      let controller nobody
+
+      face first path
+      set residence-heading heading
+      set controller        self
+      hide-turtle           ;; debug
+
+      hatch-mapping-citizens 1 [
+        set shape          "person business"
+        set color          color
+        set heading        residence-heading
+        rt 90
+        fd 0.25
+        lt 90
+        create-map-link-with controller [tie]
+        show-turtle
+      ]
+
+      ;; set shape
+      set-moving-shape
     ]
   ]
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Transportation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to advance [len]
   ifelse (advance-distance > len) [
@@ -287,196 +307,103 @@ to advance [len]
   ]
 end
 
-to advance-and-turn
-  set advance-distance speed
-  while [advance-distance > 0 and length path > 1][
-    let current-vertex one-of vertices-on patch-here
-    let dis-cur distance current-vertex
-
-    let next-vertex    nobody
-    let prev-vertex    nobody
-    let dis-nxt        0
-    ifelse (patch-ahead 1 != nobody)[
-      set next-vertex  one-of vertices-on patch-ahead 1
-      set dis-nxt distance next-vertex
-    ][
-      set prev-vertex  one-of vertices-on patch-ahead -1
-      set dis-nxt distance prev-vertex
-    ]
-
-    ;; advance
-    ifelse (turned?)[
-      let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 1 / 2)
-      if len < 0.00001 [set len 0.00001]
-      advance len
-    ][
-      ;; go straight
-      ifelse (next-direction = 1) [
-        set turned? true
-        set-next-direction
-      ][
-        ;; turn right
-        ifelse(next-direction = 2)[
-          if (dis-cur > sqrt (1 / 8))[
-            let len (sqrt (dis-cur ^ 2 - 1 / 16) - 1 / 4)
-            if len < 0.00001 [set len 0.00001]
-            ifelse (advance-distance > len) [
-              fd len
-              set advance-distance advance-distance - len
-              rt 90  ;; turn right
-              set turned? true
-              set-next-direction
-            ][
-              fd advance-distance
-              set advance-distance 0
-            ]
-          ]
-        ][
-          ;; turn left
-          ifelse (next-vertex != nobody)[
-            if (dis-nxt > sqrt (5 / 8))[
-              let len (sqrt (dis-nxt ^ 2 - 1 / 16) - 3 / 4)
-              if len < 0.00001 [set len 0.00001]
-              ifelse (advance-distance > len) [
-                fd len
-                set advance-distance advance-distance - len
-                lt 90  ;; turn right
-                set turned? true
-                set-next-direction
-              ][
-                fd advance-distance
-                set advance-distance 0
-              ]
-            ]
-          ][
-            if (dis-nxt < sqrt (13 / 8))[
-              let len (5 / 4 - sqrt (dis-nxt ^ 2 - 1 / 16))
-              if len < 0.00001 [set len 0.00001]
-              ifelse (advance-distance > len) [
-                fd len
-                set advance-distance advance-distance - len
-                lt 90  ;; turn right
-                set turned? true
-                set-next-direction
-              ][
-                fd advance-distance
-                set advance-distance 0
-              ]
-            ]
-          ]
-
-        ]
-      ]
-    ]
-
-    ;; on the next patch
-    if (one-of vertices-on patch-here != current-vertex)[
-      set turned? false
-      set path but-first path
-    ]
+to wait-passenger
+  if trip-mode = 4 [
+    set time   bus-duration
+    set still? true
   ]
 end
 
-to commute [mode]
-  if mode = 1[
+to set-speed [mode]
+  ifelse (mode = 1)[
     set speed car-speed
-    ;; set destination
-    if (patch-here = residence)[
-      let source one-of vertices-on patch-here
-      let target one-of vertices-on company
-      set path find-path source target 1
-    ]
-    if (patch-here = company)[
-      let source one-of vertices-on patch-here
-      let target one-of vertices-on residence
-      set path find-path source target 1
-    ]
-
-    ;; depart for destination
-    if (patch-here = residence or patch-here = company)[
-      face first path
-      set-next-direction
-      ifelse next-direction = 2 [
-        fd 0.75  ;; turn right
-        rt 90
+  ][
+    ifelse (mode = 2)[
+      set speed person-speed
+    ][
+      ifelse (mode = 3)[
+        set speed car-speed
       ][
-        fd 1.25  ;; turn left
-        lt 90
+        set speed bus-speed
       ]
-      set shape "car top"
-      set turned? true
-      set path but-first path
-      set-next-direction
-    ]
-
-    ;; advance
-    advance-and-turn
-
-    ;; arrived at the destination
-    if (length path = 1)[
-      move-to first path
-      set shape "person business"
-      set path []
-      set time-remaining event-duration
-    ]
-  ]
-  if mode = 2[
-    set speed walk-speed
-    ;; set destination
-    if (patch-here = residence)[
-      let source one-of vertices-on patch-here
-      let target one-of vertices-on company
-      set path find-path source target 2
-    ]
-    if (patch-here = company)[
-      let source one-of vertices-on patch-here
-      let target one-of vertices-on residence
-      set path find-path source target 2
-    ]
-
-    ;; depart for destination
-    if (patch-here = residence or patch-here = company)[
-      face first path
-      set-next-direction
-      ifelse next-direction = 2 [
-        fd 0.75  ;; turn right
-        rt 90
-      ][
-        fd 1.25  ;; turn left
-        lt 90
-      ]
-      set shape "person business"
-      set turned? true
-      set path but-first path
-      set-next-direction
-    ]
-
-    ;; advance
-    advance-and-turn
-
-    ;; arrived at the destination
-    if (length path = 1)[
-      move-to first path
-      set shape "person business"
-      set path []
-      set time-remaining event-duration
     ]
   ]
 end
 
-;; Bus Procedure
-to move-forward
-  set speed bus-speed
+to set-duration [mode]
+  ifelse (mode = 4)[         ;; bus
+    set time   bus-duration
+  ][                         ;; person
+    set time event-duration
+  ]
+  set still? true
+end
+
+to set-static-shape
+  if breed = citizens [
+    ask map-link-neighbors [
+      set shape "person business"
+    ]
+  ]
+end
+
+to set-moving-shape
+  if trip-mode = 1 [
+    ask map-link-neighbors [
+      set shape "car top"
+    ]
+  ]
+end
+
+to set-trip-mode
+  if breed = citizens [
+    ifelse has-car? [
+      set trip-mode 1
+    ][
+      set trip-mode 2
+    ]
+  ]
+end
+
+to set-path
+  let origin-point     nobody
+  let terminal-point   nobody
+  let mode             0
+  ifelse breed = buses [
+    set origin-point   origin-station
+    set terminal-point terminal-station
+    set mode           4
+  ][
+    set origin-point   residence
+    set terminal-point company
+    set-trip-mode
+    set mode           trip-mode
+  ]
+
+  if (patch-here = [patch-here] of origin-point)[
+    set path find-path origin-point terminal-point mode
+  ]
+  if (patch-here = [patch-here] of terminal-point)[
+    set path find-path terminal-point origin-point mode
+  ]
+end
+
+to move [mode]
+  set-speed mode
   set advance-distance speed
   while [advance-distance > 0 and length path > 1] [
     let next-vertex first path
     if (distance next-vertex < 0.00001) [
       set path but-first path
-;      face first path
-      rt ((towards first path - heading) mod 360)
+      face first path
       set next-vertex first path
+      wait-passenger
     ]
-    advance distance next-vertex
+    ifelse not still? [
+      advance distance next-vertex
+    ][
+      set advance-distance 0
+    ]
   ]
 
   if (length path = 1)[
@@ -484,52 +411,60 @@ to move-forward
       let next-vertex first path
       ifelse (distance next-vertex < 0.00001) [  ;; arrived at destination
         set path []
-        lt 180
-        ;; set destination
-        if (patch-here = [patch-here] of origin-station)[
-          let source one-of vertices-on patch-here
-          let target one-of vertices-on terminal-station
-          set path find-path source target 4
-        ]
-        if (patch-here = [patch-here] of terminal-station)[
-          let source one-of vertices-on patch-here
-          let target one-of vertices-on origin-station
-          set path find-path source target 4
-        ]
+        ;; wait
+        set-duration mode
+        ;; set default shape
+        set-static-shape
+        ;; set path
+        set-trip-mode
+        set-path
       ][
         advance distance next-vertex
       ]
     ]
   ]
-
 end
 
 to stay
-  set time-remaining time-remaining - 1
-  if (time-remaining = 0 and patch-here = company)[
-    set money money + earning-power
+  set time time - 1
+  if (time = 0)[
+    set still? false
+    if breed = buses [
+      if (patch-here = [patch-here] of origin-station or
+        patch-here = [patch-here] of terminal-station) [
+        lt 180
+        ]
+    ]
+    if breed = citizens [
+      lt 180
+      face first path
+      set-moving-shape
+      if (patch-here = [patch-here] of company)[
+        set money money + earning-power
+      ]
+    ]
   ]
 end
 
-to move
+to progress
   ask citizens [
-    ifelse (time-remaining = 0)[
-      ifelse(has-car?)[
-        commute 1
-      ][
-        commute 2
-      ]
-    ][
+    ifelse still? [
       stay
+    ][
+      move trip-mode
     ]
   ]
   ask buses [
-    move-forward
+    ifelse still? [
+      stay
+    ][
+      move trip-mode
+    ]
   ]
 end
 
 to go
-  move
+  progress
   mouse-manager
   tick
 end
@@ -562,6 +497,7 @@ to add-bus-stop
         set bus-route? true
         set cost length bus-line
         set color orange
+        set thickness 0.2
       ]
     ]
     set i i + 1
@@ -571,23 +507,33 @@ to add-bus-stop
     let bus-heading 0
     let controller nobody
     sprout-buses 1 [
+      ;; set basic properties
       set origin-station   origin-station-vertex
       set terminal-station terminal-station-vertex
-      set path but-first bus-line
+      ;; set transportation properties
+      set speed            bus-speed
+      set still?           false
+      set time             0
+      set trip-mode        4
+
+      ;; set path
+      set path             but-first bus-line
+
+      ;; set parameters for the mapping bus
       face first path
-      set bus-heading heading
-      set controller self
-      hide-turtle  ;; debug
+      set bus-heading      heading
+      set controller       self
+      hide-turtle          ;; debug
     ]
     sprout-mapping-buses 1 [
-      set shape "bus"
-      set color orange
-      set size 1.5
-      set heading bus-heading
+      set shape            "bus"
+      set color            orange
+      set size             1.5
+      set heading          bus-heading
       rt 90
       fd 0.25
       lt 90
-      create-bus-link-with controller [tie]
+      create-map-link-with controller [tie]
     ]
   ]
 end
@@ -600,14 +546,15 @@ to mouse-manager
   let mouse-is-down? mouse-down?
   if mouse-clicked? [
     let patch-clicked patch round mouse-xcor round mouse-ycor
-    print "clicked!"
+    print "clicked!"  ;; debug
     if ([land-type] of patch-clicked = "road")[
       ifelse (not is-patch? global-origin-station) [
         set global-origin-station patch-clicked
-        print global-origin-station
+        print patch-clicked  ;; log
       ][
         if (patch-clicked != global-origin-station)[
           set global-terminal-station patch-clicked
+          print patch-clicked  ;; log
           add-bus-stop
           set global-origin-station  nobody
           set global-terminal-station nobody
