@@ -5,6 +5,7 @@ breed [mapping-buses mapping-bus]
 breed [vertices vertex]
 undirected-link-breed [edges edge]
 undirected-link-breed [map-links map-link]
+undirected-link-breed [bus-links bus-link]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Variables
@@ -104,7 +105,7 @@ end
 to setup-config
   set district-width       7
   set district-length      7
-  set initial-people-num   0      ;; TODO 20
+  set initial-people-num   20      ;; TODO 20
   set people-per-company   5
   set people-per-residence 1
   set mouse-was-down?      false
@@ -307,10 +308,44 @@ to advance [len]
   ]
 end
 
-to wait-passenger
+to passengers-off
+  let this self
+  ifelse length path > 0 [
+    let next-station first path
+    if (any? bus-link-neighbors)[
+      ask bus-link-neighbors [
+        set path but-first path
+        if (first path != next-station)[
+          ask link-with this [
+            die
+          ]
+          set still? false
+          set time   0
+        ]
+      ]
+    ]
+  ][
+    if (any? bus-link-neighbors)[
+      ask bus-link-neighbors [
+        ask link-with this [
+          die
+        ]
+        set still? false
+      ]
+    ]
+  ]
+end
+
+to on-off-at-bus-stop
+  if trip-mode = 2 [
+    if (length path > 0 and distance first path > 1.0001)[
+      set still? true
+    ]
+  ]
   if trip-mode = 4 [
     set time   bus-duration
     set still? true
+    passengers-off
   ]
 end
 
@@ -395,11 +430,11 @@ to move [mode]
     let next-vertex first path
     if (distance next-vertex < 0.00001) [
       set path but-first path
-      face first path
       set next-vertex first path
-      wait-passenger
+      on-off-at-bus-stop
     ]
     ifelse not still? [
+      face next-vertex
       advance distance next-vertex
     ][
       set advance-distance 0
@@ -409,8 +444,10 @@ to move [mode]
   if (length path = 1)[
     while [advance-distance > 0 and length path = 1][
       let next-vertex first path
+      face next-vertex
       ifelse (distance next-vertex < 0.00001) [  ;; arrived at destination
         set path []
+        on-off-at-bus-stop
         ;; wait
         set-duration mode
         ;; set default shape
@@ -430,6 +467,15 @@ to stay
   if (time = 0)[
     set still? false
     if breed = buses [
+      ;; passengers on
+      let next-station first path
+      let this self
+      if (any? (citizens-on patch-here) with [first path = next-station])[
+        ask (citizens-on patch-here) with [first path = next-station] [
+          create-bus-link-with this [tie]
+        ]
+      ]
+      ;; turn around
       if (patch-here = [patch-here] of origin-station or
         patch-here = [patch-here] of terminal-station) [
         lt 180
@@ -527,7 +573,7 @@ to add-bus-stop
     ]
     sprout-mapping-buses 1 [
       set shape            "bus"
-      set color            orange
+      set color            yellow
       set size             1.5
       set heading          bus-heading
       rt 90
@@ -597,21 +643,19 @@ to dijkstra [source target mode] ;; mode: 1: take car, 2: take bus, 3: take taxi
     let u min-one-of Q [weight]
     set Q Q with [self != u]
     let patch-u [patch-here] of u
-    if ([land-type] of patch-u = "road" or u = source or u = target)[
-      ask [link-neighbors] of u [
-        let edge-btw edge [who] of u [who] of self
-        ifelse (mode = 4)[       ;; bus route
-          if ([bus-route?] of edge-btw = true)[
+    ask [edge-neighbors] of u [
+      let edge-btw edge [who] of u [who] of self
+      ifelse (mode = 4)[       ;; bus route
+        if ([bus-route?] of edge-btw = true)[
+          relax u self edge-btw
+        ]
+      ][                       ;; people commuting
+        ifelse ([bus-route?] of edge-btw = true)[
+          if (mode = 2) [
             relax u self edge-btw
           ]
-        ][                       ;; people commuting
-          ifelse ([bus-route?] of edge-btw = true)[
-            if (mode = 2) [
-              relax u self edge-btw
-            ]
-          ][
-            relax u self edge-btw
-          ]
+        ][
+          relax u self edge-btw
         ]
       ]
     ]
