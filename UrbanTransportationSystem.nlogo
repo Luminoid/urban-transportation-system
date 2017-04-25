@@ -20,6 +20,9 @@ globals[
   people-per-residence
   ;; interaction
   mouse-was-down?
+  ;; time control
+  traffic-light-cycle
+  traffic-light-count
   ;; transportation
   person-speed             ;; person
   car-speed                ;; car
@@ -73,7 +76,6 @@ buses-own [
 patches-own[
   land-type                ;; land, road, bus-stop, residence, company, idle-estate
   intersection?
-  green-light-on?          ;; land-type = "road"
   capacity                 ;; land-type = "residence" or "company"
 ]
 
@@ -105,17 +107,19 @@ end
 to setup-config
   set district-width       7
   set district-length      7
-  set initial-people-num   20      ;; TODO 20
+  set initial-people-num   40      ;; TODO 20
   set people-per-company   5
   set people-per-residence 1
   set mouse-was-down?      false
+  set traffic-light-cycle  5
+  set traffic-light-count  traffic-light-cycle
 end
 
 to setup-globals
   set person-speed         0.05
   set car-speed            0.99
   set bus-speed            0.49
-  set acceleration         0.099
+  set acceleration         0.49
   set event-duration       50
   set bus-duration         2
   set money                0
@@ -124,7 +128,6 @@ end
 to setup-patches
   ask patches [
     set intersection? false
-    set green-light-on? true
   ]
   ;; roads
   ask patches with [
@@ -149,17 +152,10 @@ to setup-patches
     let left-patch  patch-at -1  0
     let up-patch    patch-at  0  1
     let down-patch  patch-at  0 -1
-    ifelse green-light-on? [
-      if right-patch != nobody [ ask right-patch [set pcolor green] ]
-      if left-patch  != nobody [ ask left-patch  [set pcolor green] ]
-      if up-patch    != nobody [ ask up-patch    [set pcolor red  ] ]
-      if down-patch  != nobody [ ask down-patch  [set pcolor red  ] ]
-    ][
-      if right-patch != nobody [ ask right-patch [set pcolor red  ] ]
-      if left-patch  != nobody [ ask left-patch  [set pcolor red  ] ]
-      if up-patch    != nobody [ ask up-patch    [set pcolor green] ]
-      if down-patch  != nobody [ ask down-patch  [set pcolor green] ]
-    ]
+    if right-patch != nobody [ ask right-patch [set pcolor green] ]
+    if left-patch  != nobody [ ask left-patch  [set pcolor green] ]
+    if up-patch    != nobody [ ask up-patch    [set pcolor red  ] ]
+    if down-patch  != nobody [ ask down-patch  [set pcolor red  ] ]
   ]
   ;; land
   ask patches with [land-type != "road"][
@@ -298,6 +294,52 @@ end
 ;; Transportation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+to set-speed
+  let max-speed person-speed
+  ifelse (trip-mode = 1 or trip-mode = 3) [
+    set max-speed car-speed
+  ][
+    ifelse (trip-mode = 2) [
+      set max-speed person-speed
+    ][
+      set max-speed bus-speed
+    ]
+  ]
+
+  ;; agent can only see one patch ahead of it
+  let this self
+  let nearest-vehicle nobody
+  let turtles-ahead   nobody
+  if patch-ahead 1 != nobody [
+    set turtles-ahead   (turtles-on patch-ahead 1) with
+    [shape = "top car" or shape = "bus" and abs (heading - [heading] of this) < 1]
+  ]
+  if turtles-ahead != nobody [
+    set nearest-vehicle min-one-of turtles-ahead [distance this]
+  ]
+
+  let safe-distance 100  ;; positive infinity
+  if nearest-vehicle != nobody [
+    set safe-distance distance nearest-vehicle
+  ]
+
+  ifelse max-speed > safe-distance [
+    let next-speed speed - acceleration
+    ifelse (next-speed < 0)[
+      set speed 0
+    ][
+      set speed next-speed
+    ]
+  ][
+    let next-speed speed + acceleration
+    ifelse (next-speed > max-speed)[
+      set speed max-speed
+    ][
+      set speed next-speed
+    ]
+  ]
+end
+
 to advance [len]
   ifelse (advance-distance > len) [
     fd len
@@ -336,6 +378,14 @@ to passengers-off
   ]
 end
 
+to watch-traffic-light
+  ifelse ([land-type] of patch-here = "road" and [pcolor] of patch-here = red)[
+    set still? true
+  ][
+    set still? false
+  ]
+end
+
 to on-off-at-bus-stop
   if trip-mode = 2 [
     if (length path > 0 and distance first path > 1.0001)[
@@ -346,22 +396,6 @@ to on-off-at-bus-stop
     set time   bus-duration
     set still? true
     passengers-off
-  ]
-end
-
-to set-speed [mode]
-  ifelse (mode = 1)[
-    set speed car-speed
-  ][
-    ifelse (mode = 2)[
-      set speed person-speed
-    ][
-      ifelse (mode = 3)[
-        set speed car-speed
-      ][
-        set speed bus-speed
-      ]
-    ]
   ]
 end
 
@@ -424,9 +458,10 @@ to set-path
 end
 
 to move [mode]
-  set-speed mode
+  set-speed
   set advance-distance speed
   while [advance-distance > 0 and length path > 1] [
+    watch-traffic-light
     let next-vertex first path
     if (distance next-vertex < 0.00001) [
       set path but-first path
@@ -494,6 +529,7 @@ end
 
 to progress
   ask citizens [
+    watch-traffic-light
     ifelse still? [
       stay
     ][
@@ -509,9 +545,22 @@ to progress
   ]
 end
 
+to change-traffic-light
+  ifelse (traffic-light-count = 0)[
+    let green-patches patches with [pcolor = green]
+    let red-patches   patches with [pcolor = red]
+    ask green-patches [set pcolor red]
+    ask red-patches   [set pcolor green]
+    set traffic-light-count traffic-light-cycle
+  ][
+    set traffic-light-count (traffic-light-count - 1)
+  ]
+end
+
 to go
   progress
   mouse-manager
+  change-traffic-light
   tick
 end
 
