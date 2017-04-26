@@ -28,8 +28,10 @@ globals[
   car-speed                ;;  car
   bus-speed                ;;  bus
   acceleration
+  deceleration
   event-duration           ;;  person: work and rest
   bus-duration             ;;  bus: wait
+  buffer-distance          ;;  safe distance to the car ahead
   ;;  game parameter
   money
   ;;  patch-set
@@ -114,7 +116,7 @@ to setup-config
   set people-per-company   5
   set people-per-residence 1
   set mouse-was-down?      false
-  set traffic-light-cycle  8
+  set traffic-light-cycle  10
   set traffic-light-count  traffic-light-cycle
 end
 
@@ -122,9 +124,11 @@ to setup-globals
   set person-speed         0.05
   set car-speed            0.99
   set bus-speed            0.49
-  set acceleration         0.29
+  set acceleration         0.25
+  set deceleration         0.5
   set event-duration       50
   set bus-duration         2
+  set buffer-distance      0.6
   set money                0
 end
 
@@ -243,7 +247,7 @@ to setup-citizens
       set earning-power     5
 
       ;;  set has-car?
-      ifelse random 100 < 90 [  ;; TODO 50%
+      ifelse random 100 < 50 [  ;; TODO 50%
         set has-car? true
         set color    magenta
       ][
@@ -395,23 +399,27 @@ to set-speed
       if (jam-ahead != nobody and count jam-ahead > 0) [
         set nearest-vehicle min-one-of jam-ahead [distance this]
         set safe-distance distance nearest-vehicle
-        set safe-distance safe-distance  ;; buffer distance ;; TODO + 0.5
       ]
     ]
 
-    ifelse max-speed > safe-distance[
-      let next-speed speed - acceleration
-      ifelse (next-speed < 0)[
-        set speed 0
-      ][
-        set speed next-speed
-      ]
+    ifelse safe-distance < buffer-distance [
+      set speed 0
     ][
-      let next-speed speed + acceleration
-      ifelse (next-speed > max-speed)[
-        set speed max-speed
+      set safe-distance safe-distance - buffer-distance  ;; TODO: buffer distance
+      ifelse max-speed > safe-distance[
+        let next-speed speed - deceleration
+        ifelse (next-speed < 0)[
+          set speed 0
+        ][
+          set speed next-speed
+        ]
       ][
-        set speed next-speed
+        let next-speed speed + acceleration
+        ifelse (next-speed > max-speed)[
+          set speed max-speed
+        ][
+          set speed next-speed
+        ]
       ]
     ]
   ]
@@ -537,6 +545,7 @@ to move [mode]
 
   if (length path = 1)[
     while [advance-distance > 0 and length path = 1][
+      watch-traffic-light
       let next-vertex first path
       face next-vertex
       ifelse (distance next-vertex < 0.00001) [  ;; arrived at destination
