@@ -1,38 +1,38 @@
-breed [citizens citizen]
+breed [citizens         citizen]
 breed [mapping-citizens mapping-citizen]
-breed [buses bus]
-breed [mapping-buses mapping-bus]
-breed [vertices vertex]
-undirected-link-breed [edges edge]
-undirected-link-breed [map-links map-link]
-undirected-link-breed [bus-links bus-link]
+breed [buses            bus]
+breed [mapping-buses    mapping-bus]
+breed [vertices         vertex]             ;; Graph Algorithm
+undirected-link-breed [edges     edge]      ;; Graph Algorithm
+undirected-link-breed [map-links map-link]  ;; link between controller and entity
+undirected-link-breed [bus-links bus-link]  ;; link between bus and passenger
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Variables
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 globals[
-  ;; configuration
+  ;;  configuration
   district-width
   district-length
   initial-people-num
   people-per-company
   people-per-residence
-  ;; interaction
+  ;;  interaction
   mouse-was-down?
-  ;; time control
+  ;;  time control
   traffic-light-cycle
   traffic-light-count
-  ;; transportation
-  person-speed             ;; person
-  car-speed                ;; car
-  bus-speed                ;; bus
+  ;;  transportation
+  person-speed             ;;  person
+  car-speed                ;;  car
+  bus-speed                ;;  bus
   acceleration
-  event-duration           ;; person: work and rest
-  bus-duration             ;; bus: wait
-  ;; game parameter
+  event-duration           ;;  person: work and rest
+  bus-duration             ;;  bus: wait
+  ;;  game parameter
   money
-  ;; patch-set
+  ;;  patch-set
   roads
   intersections
   idle-estates
@@ -40,43 +40,46 @@ globals[
   company-district
   residences
   companies
-  ;; patch
+  ;;  patch
   global-origin-station
   global-terminal-station
 ]
 
 citizens-own[
-  ;; basic
+  ;;  basic
   residence
   company
   has-car?
-  ;; game
+  ;;  game
   earning-power
-  ;; transportation
-  trip-mode                ;; 1: car, 2: bus, 3: taxi
-  speed
+  ;;  transportation
+  trip-mode                ;;  1: car, 2: bus, 3: taxi
   path
+  ;; round
+  speed
   advance-distance
   still?
   time
 ]
 
 buses-own [
-  origin-station           ;; vertex
-  terminal-station         ;; vertex
-  ;; transportation
-  trip-mode                ;; mode
-  speed
+  ;;  basic
+  origin-station           ;;  vertex
+  terminal-station         ;;  vertex
+  ;;  transportation
+  trip-mode                ;;  mode
   path
+  ;;  round
+  speed
   advance-distance
   still?
   time
 ]
 
 patches-own[
-  land-type                ;; land, road, bus-stop, residence, company, idle-estate
+  land-type                ;;  land, road, bus-stop, residence, company, idle-estate
   intersection?
-  capacity                 ;; land-type = "residence" or "company"
+  capacity                 ;;  land-type = "residence" or "company"
 ]
 
 vertices-own [
@@ -107,7 +110,7 @@ end
 to setup-config
   set district-width       7
   set district-length      7
-  set initial-people-num   40      ;; TODO 20
+  set initial-people-num   80      ;; TODO 20
   set people-per-company   5
   set people-per-residence 1
   set mouse-was-down?      false
@@ -119,7 +122,7 @@ to setup-globals
   set person-speed         0.05
   set car-speed            0.99
   set bus-speed            0.49
-  set acceleration         0.49
+  set acceleration         0.29
   set event-duration       50
   set bus-duration         2
   set money                0
@@ -129,24 +132,22 @@ to setup-patches
   ask patches [
     set intersection? false
   ]
-  ;; roads
+  ;;  roads
   ask patches with [
     pxcor mod (district-width + 1) = 0 or pycor mod (district-length + 1) = 0
   ][
     set land-type "road"
-  ]
-  set roads patch-set patches with [land-type = "road"]
-  ask roads [
     set pcolor gray + 4
   ]
-  ;; intersections
+  set roads patches with [land-type = "road"]
+  ;;  intersections
   ask patches with [
     pxcor mod (district-width + 1) = 0 and pycor mod (district-length + 1) = 0
   ][
     set intersection? true
   ]
-  set intersections patch-set patches with [intersection? = true]
-  ;; traffic lights
+  set intersections patches with [intersection? = true]
+  ;;  traffic lights
   ask intersections [
     let right-patch patch-at  1  0
     let left-patch  patch-at -1  0
@@ -157,28 +158,26 @@ to setup-patches
     if up-patch    != nobody [ ask up-patch    [set pcolor red  ] ]
     if down-patch  != nobody [ ask down-patch  [set pcolor red  ] ]
   ]
-  ;; land
+  ;;  land
   ask patches with [land-type != "road"][
     set land-type "land"
     set pcolor brown + 2
   ]
-  ;; idle estate
+  ;;  idle estate
   ask patches with [
     any? neighbors with [land-type = "road"] and land-type = "land"
   ][
     set land-type "idle-estate"
-  ]
-  set idle-estates patch-set patches with [land-type = "idle-estate"]
-  ask idle-estates [
     set pcolor brown + 3
   ]
-  ;; residence-district
+  set idle-estates patch-set patches with [land-type = "idle-estate"]
+  ;;  residence-district
   set residence-district patch-set patches with [
-    ((pxcor > max-pxcor / 2 or pxcor < (- max-pxcor / 2)) and
-    (pycor > max-pycor / 2 or pycor < (- max-pycor / 2))) and
+    ((pxcor > max-pxcor / 2) or (pxcor < (- max-pxcor / 2)) or
+    (pycor > max-pycor / 2) or (pycor < (- max-pycor / 2))) and
     (land-type = "idle-estate")
   ]
-  ;; company-district
+  ;;  company-district
   set company-district patch-set patches with [
     ((pxcor < max-pxcor / 2) and (pxcor > (- max-pxcor / 2)) and
     (pycor < max-pycor / 2) and (pycor > (- max-pycor / 2))) and
@@ -189,7 +188,7 @@ end
 to setup-estates
   let residence-num ceiling(initial-people-num / people-per-residence)
   let company-num   ceiling(initial-people-num / people-per-company  )
-  ;; residences
+  ;;  residences
   ask n-of residence-num residence-district[
     set land-type "residence"
   ]
@@ -198,7 +197,7 @@ to setup-estates
     set pcolor yellow
     set capacity 0
   ]
-  ;; companies
+  ;;  companies
   ask n-of company-num company-district[
     set land-type "company"
   ]
@@ -210,7 +209,7 @@ to setup-estates
 end
 
 to setup-map
-  ;; initialize vertices
+  ;;  initialize vertices
   ask roads [
     sprout-vertices 1 [hide-turtle]
   ]
@@ -220,7 +219,7 @@ to setup-map
   ask companies [
     sprout-vertices 1 [hide-turtle]
   ]
-  ;; initialize edges
+  ;;  initialize edges
   ask vertices [
     create-edges-with vertices-on neighbors4 with [land-type = "road"][
       set shape "dotted"
@@ -234,17 +233,17 @@ to setup-citizens
   set-default-shape citizens "person business"
   ask residences [
     sprout-citizens people-per-residence [
-      ;; set company
+      ;;  set company
       let my-company one-of companies with [capacity < people-per-company]
       ask my-company [ set capacity capacity + 1 ]
 
-      ;; set basic properties
+      ;;  set basic properties
       set residence         one-of vertices-on patch-here
       set company           one-of vertices-on my-company
       set earning-power     5
 
-      ;; set has-car?
-      ifelse random 100 < 50 [
+      ;;  set has-car?
+      ifelse random 100 < 90 [  ;; TODO 50%
         set has-car? true
         set color    magenta
       ][
@@ -252,31 +251,28 @@ to setup-citizens
         set color    cyan
       ]
 
-      ;; set transportation properties
+      ;;  set transportation properties
       set speed             person-speed
       set advance-distance  0
       set still?            false
       set time              0
 
-      ;; set trip-mode
+      ;;  set trip-mode
       set-trip-mode
 
-      ;; set path
+      ;;  set path
       set path find-path residence company trip-mode
 
-      ;; hatch mapping person
-      let residence-heading 0
-      let controller nobody
-
+      ;;  hatch mapping person
       face first path
-      set residence-heading heading
-      set controller        self
-      hide-turtle           ;; debug
+      let controller         self
+      let controller-heading heading
+      hide-turtle            ;; debug
 
       hatch-mapping-citizens 1 [
         set shape          "person business"
         set color          color
-        set heading        residence-heading
+        set heading        heading
         rt 90
         fd 0.25
         lt 90
@@ -284,7 +280,7 @@ to setup-citizens
         show-turtle
       ]
 
-      ;; set shape
+      ;;  set shape
       set-moving-shape
     ]
   ]
@@ -294,52 +290,7 @@ end
 ;; Transportation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-to set-speed
-  let max-speed person-speed
-  ifelse (trip-mode = 1 or trip-mode = 3) [
-    set max-speed car-speed
-  ][
-    ifelse (trip-mode = 2) [
-      set max-speed person-speed
-    ][
-      set max-speed bus-speed
-    ]
-  ]
-
-  ;; agent can only see one patch ahead of it
-  let this self
-  let nearest-vehicle nobody
-  let turtles-ahead   nobody
-  if patch-ahead 1 != nobody [
-    set turtles-ahead   (turtles-on patch-ahead 1) with
-    [shape = "top car" or shape = "bus" and abs (heading - [heading] of this) < 1]
-  ]
-  if turtles-ahead != nobody [
-    set nearest-vehicle min-one-of turtles-ahead [distance this]
-  ]
-
-  let safe-distance 100  ;; positive infinity
-  if nearest-vehicle != nobody [
-    set safe-distance distance nearest-vehicle
-  ]
-
-  ifelse max-speed > safe-distance [
-    let next-speed speed - acceleration
-    ifelse (next-speed < 0)[
-      set speed 0
-    ][
-      set speed next-speed
-    ]
-  ][
-    let next-speed speed + acceleration
-    ifelse (next-speed > max-speed)[
-      set speed max-speed
-    ][
-      set speed next-speed
-    ]
-  ]
-end
-
+;;
 to advance [len]
   ifelse (advance-distance > len) [
     fd len
@@ -348,6 +299,12 @@ to advance [len]
     fd advance-distance
     set advance-distance 0
   ]
+end
+
+to halt [duration]
+  set time   duration
+  set still? true
+  set speed  0
 end
 
 to passengers-off
@@ -378,35 +335,94 @@ to passengers-off
   ]
 end
 
-to watch-traffic-light
-  if ([land-type] of patch-here = "road" and [pcolor] of patch-here = red)[
-    set still? true
-  ]
-  if ([land-type] of patch-here = "road" and [pcolor] of patch-here = green)[
-    set still? false
-  ]
-end
-
 to on-off-at-bus-stop
   if trip-mode = 2 [
     if (length path > 0 and distance first path > 1.0001)[
-      set still? true
+      halt 0
     ]
   ]
   if trip-mode = 4 [
-    set time   bus-duration
-    set still? true
+    halt bus-duration
     passengers-off
+  ]
+end
+
+to set-speed
+  let max-speed person-speed
+  ifelse (trip-mode = 1 or trip-mode = 3) [
+    set max-speed car-speed
+  ][
+    ifelse (trip-mode = 2) [
+      set max-speed person-speed
+    ][
+      set max-speed bus-speed
+    ]
+  ]
+
+  ;; agent can only see one patch ahead of it
+  let controller      self
+  let this            one-of map-link-neighbors
+  let turtles-ahead   nobody
+  let vehicles-ahead  nobody
+  let jam-ahead       nobody
+  let nearest-vehicle nobody
+  let safe-distance   100    ;; positive infinity
+
+  ifelse patch-ahead 1 != nobody [
+    set turtles-ahead (turtle-set (other turtles-here) (turtles-on patch-ahead 1))
+    with [who != [who] of this]
+  ][
+    set turtles-ahead turtle-set (other turtles-here)
+    with [who != [who] of this]
+  ]
+  if turtles-ahead != nobody [
+    set vehicles-ahead turtles-ahead with[
+      (shape = "car top" or shape = "bus")
+    ]
+  ]
+  ifelse (vehicles-ahead != nobody and count vehicles-ahead > 0 and any? vehicles-ahead with [distance this = 0])[
+    ifelse speed != 0 [
+      set speed random-float speed
+    ][
+      set speed random-float person-speed  ;; restart
+    ]
+  ][
+    if (vehicles-ahead != nobody and count vehicles-ahead > 0) [
+      set jam-ahead vehicles-ahead with[
+        abs (abs ([heading] of this - towards this) - 180) < 1 and  ;; in front of self
+        abs (heading - [heading] of this) < 1                       ;; same direction
+      ]
+      if (jam-ahead != nobody and count jam-ahead > 0) [
+        set nearest-vehicle min-one-of jam-ahead [distance this]
+        set safe-distance distance nearest-vehicle
+        set safe-distance safe-distance  ;; buffer distance ;; TODO + 0.5
+      ]
+    ]
+
+    ifelse max-speed > safe-distance[
+      let next-speed speed - acceleration
+      ifelse (next-speed < 0)[
+        set speed 0
+      ][
+        set speed next-speed
+      ]
+    ][
+      let next-speed speed + acceleration
+      ifelse (next-speed > max-speed)[
+        set speed max-speed
+      ][
+        set speed next-speed
+      ]
+    ]
   ]
 end
 
 to set-duration [mode]
   ifelse (mode = 4)[         ;; bus
-    set time   bus-duration
+    halt bus-duration
   ][                         ;; person
-    set time event-duration
+    halt event-duration
   ]
-  set still? true
 end
 
 to set-static-shape
@@ -458,6 +474,48 @@ to set-path
   ]
 end
 
+to watch-traffic-light
+  if ([land-type] of patch-here = "road" and [pcolor] of patch-here = red)[
+    halt 0
+  ]
+  if ([land-type] of patch-here = "road" and [pcolor] of patch-here = green)[
+    set still? false
+  ]
+end
+
+to stay
+  if time > 1 [
+    set time time - 1
+  ]
+  if (time = 1)[
+    set time time - 1
+    set still? false
+    if breed = buses [
+      ;; passengers on
+      let next-station first path
+      let this self
+      if (any? (citizens-on patch-here) with [first path = next-station])[
+        ask (citizens-on patch-here) with [first path = next-station] [
+          create-bus-link-with this [tie]
+        ]
+      ]
+      ;; turn around
+      if (patch-here = [patch-here] of origin-station or
+        patch-here = [patch-here] of terminal-station) [
+        lt 180
+        ]
+    ]
+    if breed = citizens [
+      if (patch-here = [patch-here] of company)[
+        set money money + earning-power
+      ]
+      lt 180
+      face first path
+      set-moving-shape
+    ]
+  ]
+end
+
 to move [mode]
   set-speed
   set advance-distance speed
@@ -494,39 +552,6 @@ to move [mode]
       ][
         advance distance next-vertex
       ]
-    ]
-  ]
-end
-
-to stay
-  if time > 1 [
-    set time time - 1
-  ]
-  if (time = 1)[
-    set time time - 1
-    set still? false
-    if breed = buses [
-      ;; passengers on
-      let next-station first path
-      let this self
-      if (any? (citizens-on patch-here) with [first path = next-station])[
-        ask (citizens-on patch-here) with [first path = next-station] [
-          create-bus-link-with this [tie]
-        ]
-      ]
-      ;; turn around
-      if (patch-here = [patch-here] of origin-station or
-        patch-here = [patch-here] of terminal-station) [
-        lt 180
-        ]
-    ]
-    if breed = citizens [
-      if (patch-here = [patch-here] of company)[
-        set money money + earning-power
-      ]
-      lt 180
-      face first path
-      set-moving-shape
     ]
   ]
 end
@@ -656,7 +681,7 @@ to mouse-manager
           set global-terminal-station patch-clicked
           print patch-clicked  ;; log
           add-bus-stop
-          set global-origin-station  nobody
+          set global-origin-station   nobody
           set global-terminal-station nobody
         ]
       ]
