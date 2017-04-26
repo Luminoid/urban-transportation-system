@@ -111,7 +111,7 @@ to setup-config
   set people-per-company   5
   set people-per-residence 1
   set mouse-was-down?      false
-  set traffic-light-cycle  5
+  set traffic-light-cycle  8
   set traffic-light-count  traffic-light-cycle
 end
 
@@ -379,9 +379,10 @@ to passengers-off
 end
 
 to watch-traffic-light
-  ifelse ([land-type] of patch-here = "road" and [pcolor] of patch-here = red)[
+  if ([land-type] of patch-here = "road" and [pcolor] of patch-here = red)[
     set still? true
-  ][
+  ]
+  if ([land-type] of patch-here = "road" and [pcolor] of patch-here = green)[
     set still? false
   ]
 end
@@ -498,8 +499,11 @@ to move [mode]
 end
 
 to stay
-  set time time - 1
-  if (time = 0)[
+  if time > 1 [
+    set time time - 1
+  ]
+  if (time = 1)[
+    set time time - 1
     set still? false
     if breed = buses [
       ;; passengers on
@@ -517,12 +521,12 @@ to stay
         ]
     ]
     if breed = citizens [
-      lt 180
-      face first path
-      set-moving-shape
       if (patch-here = [patch-here] of company)[
         set money money + earning-power
       ]
+      lt 180
+      face first path
+      set-moving-shape
     ]
   ]
 end
@@ -537,6 +541,7 @@ to progress
     ]
   ]
   ask buses [
+    watch-traffic-light
     ifelse still? [
       stay
     ][
