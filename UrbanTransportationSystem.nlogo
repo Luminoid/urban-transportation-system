@@ -16,8 +16,9 @@ globals[
   district-width
   district-length
   initial-people-num
-  people-per-company
-  people-per-residence
+  company-capacity
+  residence-capacity
+  bus-capacity
   ;;  interaction
   mouse-was-down?
   ;;  time control
@@ -72,6 +73,7 @@ buses-own [
   trip-mode                ;;  mode
   path
   ;;  round
+  num-of-passengers
   speed
   advance-distance
   still?
@@ -81,7 +83,7 @@ buses-own [
 patches-own[
   land-type                ;;  land, road, bus-stop, residence, company, idle-estate
   intersection?
-  capacity                 ;;  land-type = "residence" or "company"
+  num                      ;;  land-type = "residence" or "company"
 ]
 
 vertices-own [
@@ -113,8 +115,9 @@ to setup-config
   set district-width       7
   set district-length      7
   set initial-people-num   80      ;; TODO 20
-  set people-per-company   5
-  set people-per-residence 1
+  set company-capacity     5
+  set residence-capacity   1
+  set bus-capacity         4
   set mouse-was-down?      false
   set traffic-light-cycle  10
   set traffic-light-count  traffic-light-cycle
@@ -190,8 +193,8 @@ to setup-patches
 end
 
 to setup-estates
-  let residence-num ceiling(initial-people-num / people-per-residence)
-  let company-num   ceiling(initial-people-num / people-per-company  )
+  let residence-num ceiling(initial-people-num / residence-capacity)
+  let company-num   ceiling(initial-people-num / company-capacity  )
   ;;  residences
   ask n-of residence-num residence-district[
     set land-type "residence"
@@ -199,7 +202,7 @@ to setup-estates
   set residences patch-set patches with [land-type = "residence"]
   ask residences [
     set pcolor yellow
-    set capacity 0
+    set num 0
   ]
   ;;  companies
   ask n-of company-num company-district[
@@ -208,7 +211,7 @@ to setup-estates
   set companies patch-set patches with [land-type = "company"]
   ask companies [
     set pcolor blue
-    set capacity 0
+    set num 0
   ]
 end
 
@@ -241,10 +244,10 @@ end
 to setup-citizens
   set-default-shape citizens "person business"
   ask residences [
-    sprout-citizens people-per-residence [
+    sprout-citizens residence-capacity [
       ;;  set company
-      let my-company one-of companies with [capacity < people-per-company]
-      ask my-company [ set capacity capacity + 1 ]
+      let my-company one-of companies with [num < company-capacity]
+      ask my-company [ set num num + 1 ]
 
       ;;  set basic properties
       set residence         one-of vertices-on patch-here
@@ -252,7 +255,7 @@ to setup-citizens
       set earning-power     5
 
       ;;  set has-car?
-      ifelse random 100 < 50 [  ;; TODO 50%
+      ifelse random 100 < 10 [  ;; TODO 50%
         set has-car? true
         set color    magenta
       ][
@@ -317,28 +320,33 @@ to halt [duration]
 end
 
 to passengers-off
-  let this self
+  let this            self
+  let off-passengers  0
   ifelse length path > 0 [
     let next-station first path
     if (any? bus-link-neighbors)[
       ask bus-link-neighbors [
         set path but-first path
         if (first path != next-station)[
+          set off-passengers off-passengers + 1
           ask link-with this [
             die
           ]
           set still? false
-          set time   0
+          ask one-of map-link-neighbors [ set size 1.0 ]
         ]
       ]
     ]
+    set num-of-passengers (num-of-passengers - off-passengers)
   ][
     if (any? bus-link-neighbors)[
+      set num-of-passengers  0  ;; all passengers off
       ask bus-link-neighbors [
         ask link-with this [
           die
         ]
         set still? false
+        ask one-of map-link-neighbors [ set size 1.0 ]
       ]
     ]
   ]
@@ -507,9 +515,19 @@ to stay
       ;; passengers on
       let next-station first path
       let this self
-      if (any? (citizens-on patch-here) with [first path = next-station])[
-        ask (citizens-on patch-here) with [first path = next-station] [
+      if (any? (citizens-on patch-here) with [first path = next-station] and num-of-passengers < bus-capacity)[
+        let on-passengers      (citizens-on patch-here) with [first path = next-station]
+        let free-space         bus-capacity - num-of-passengers
+        ifelse count on-passengers > free-space [
+          set on-passengers      (n-of free-space on-passengers)
+          set num-of-passengers  bus-capacity
+        ][
+          set on-passengers      on-passengers
+          set num-of-passengers  num-of-passengers + count on-passengers
+        ]
+        ask on-passengers [
           create-bus-link-with this [tie]
+          ask one-of map-link-neighbors [ set size 0.5 ]
         ]
       ]
       ;; turn around
@@ -634,9 +652,9 @@ to add-bus-stop
     ask item i bus-line [
       create-edge-with item (i + 1) bus-line [
         set bus-route? true
-        set cost length bus-line
-        set color orange
-        set thickness 0.2
+        set cost       length bus-line
+        set color      orange
+        set thickness  0.2
       ]
     ]
     set i i + 1
@@ -650,10 +668,11 @@ to add-bus-stop
       set origin-station   origin-station-vertex
       set terminal-station terminal-station-vertex
       ;; set transportation properties
-      set speed            bus-speed
-      set still?           false
-      set time             0
-      set trip-mode        4
+      set num-of-passengers 0
+      set speed             bus-speed
+      set still?            false
+      set time              0
+      set trip-mode         4
 
       ;; set path
       set path             but-first bus-line
