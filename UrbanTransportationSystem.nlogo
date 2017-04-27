@@ -321,14 +321,12 @@ end
 
 to passengers-off
   let this            self
-  let off-passengers  0
   ifelse length path > 0 [
     let next-station first path
     if (any? bus-link-neighbors)[
       ask bus-link-neighbors [
         set path but-first path
         if (first path != next-station)[
-          set off-passengers off-passengers + 1
           ask link-with this [
             die
           ]
@@ -337,10 +335,9 @@ to passengers-off
         ]
       ]
     ]
-    set num-of-passengers (num-of-passengers - off-passengers)
+    set num-of-passengers count bus-link-neighbors
   ][
     if (any? bus-link-neighbors)[
-      set num-of-passengers  0  ;; all passengers off
       ask bus-link-neighbors [
         ask link-with this [
           die
@@ -348,6 +345,7 @@ to passengers-off
         set still? false
         ask one-of map-link-neighbors [ set size 1.0 ]
       ]
+      set num-of-passengers  0  ;; all passengers off
     ]
   ]
 end
@@ -513,28 +511,25 @@ to stay
     set still? false
     if breed = buses [
       ;; passengers on
-      let next-station first path
-      let this self
-      if (any? (citizens-on patch-here) with [first path = next-station] and num-of-passengers < bus-capacity)[
-        let on-passengers      (citizens-on patch-here) with [first path = next-station]
-        let free-space         bus-capacity - num-of-passengers
-        ifelse count on-passengers > free-space [
+      let next-station       first path
+      let this               self
+      let on-passengers      (citizens-on patch-here) with [first path = next-station and not map-link-neighbor? self]
+      let on-passengers-num  count on-passengers
+      if (on-passengers-num > 0 and num-of-passengers < bus-capacity)[
+        let free-space           bus-capacity - num-of-passengers
+        if on-passengers-num > free-space [
           set on-passengers      (n-of free-space on-passengers)
-          set num-of-passengers  bus-capacity
-        ][
-          set on-passengers      on-passengers
-          set num-of-passengers  num-of-passengers + count on-passengers
         ]
         ask on-passengers [
-          create-bus-link-with this [tie]
+          create-bus-link-with this     [ tie ]
           ask one-of map-link-neighbors [ set size 0.5 ]
         ]
       ]
+      set num-of-passengers count bus-link-neighbors
       ;; turn around
-      if (patch-here = [patch-here] of origin-station or
-        patch-here = [patch-here] of terminal-station) [
+      if (patch-here = [patch-here] of origin-station or patch-here = [patch-here] of terminal-station) [
         lt 180
-        ]
+      ]
     ]
     if breed = citizens [
       if (patch-here = [patch-here] of company)[
@@ -652,7 +647,7 @@ to add-bus-stop
     ask item i bus-line [
       create-edge-with item (i + 1) bus-line [
         set bus-route? true
-        set cost       length bus-line
+        set cost       10 * person-speed / bus-speed * district-width * length bus-line
         set color      orange
         set thickness  0.2
       ]
@@ -665,8 +660,8 @@ to add-bus-stop
     let controller nobody
     sprout-buses 1 [
       ;; set basic properties
-      set origin-station   origin-station-vertex
-      set terminal-station terminal-station-vertex
+      set origin-station    origin-station-vertex
+      set terminal-station  terminal-station-vertex
       ;; set transportation properties
       set num-of-passengers 0
       set speed             bus-speed
