@@ -225,10 +225,15 @@ to setup-map
   ]
   ;;  initialize edges
   ask vertices [
+    let isTerminal? ([land-type] of patch-here = "residence" or [land-type] of patch-here = "company")
     create-edges-with vertices-on neighbors4 with [land-type = "road"][
       set shape "dotted"
       set bus-route? false
-      set cost 10
+      ifelse (isTerminal?)[
+        set cost 20
+      ][
+        set cost 10
+      ]
     ]
   ]
 end
