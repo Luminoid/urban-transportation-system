@@ -588,11 +588,13 @@ end
 
 to progress
   ask citizens [
-    watch-traffic-light
-    ifelse still? [
-      stay
-    ][
-      move trip-mode
+    if (count bus-link-neighbors = 0)[
+      watch-traffic-light
+      ifelse still? [
+        stay
+      ][
+        move trip-mode
+      ]
     ]
   ]
   ask buses [
@@ -881,7 +883,7 @@ initial-people-num
 initial-people-num
 0
 100
-5.0
+80.0
 1
 1
 NIL
