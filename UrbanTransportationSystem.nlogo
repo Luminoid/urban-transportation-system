@@ -1,11 +1,13 @@
-breed [citizens         citizen]
-breed [mapping-citizens mapping-citizen]
-breed [buses            bus]
-breed [mapping-buses    mapping-bus]
-breed [vertices         vertex]             ;; Graph Algorithm
-undirected-link-breed [edges     edge]      ;; Graph Algorithm
-undirected-link-breed [map-links map-link]  ;; link between controller and entity
-undirected-link-breed [bus-links bus-link]  ;; link between bus and passenger
+breed [citizens          citizen]
+breed [mapping-citizens  mapping-citizen]
+breed [buses             bus]
+breed [mapping-buses     mapping-bus]
+breed [taxies            taxi]
+breed [mapping-taxies    mapping-taxi]
+breed [vertices          vertex]             ;; Graph Algorithm
+undirected-link-breed [edges      edge]      ;; Graph Algorithm
+undirected-link-breed [map-links  map-link]  ;; link between controller and entity
+undirected-link-breed [bus-links  bus-link]  ;; link between bus and passenger
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Variables
@@ -32,7 +34,9 @@ globals[
   deceleration
   event-duration           ;;  person: work and rest
   bus-duration             ;;  bus: wait
+  taxi-duration            ;;  taxi: wait
   buffer-distance          ;;  safe distance to the car ahead
+  taxi-detect-distance     ;;  citizen's ability to detect taxi
   ;;  game parameter
   money
   ;;  patch-set
@@ -70,10 +74,23 @@ buses-own [
   origin-station           ;;  vertex
   terminal-station         ;;  vertex
   ;;  transportation
-  trip-mode                ;;  mode
+  trip-mode                ;;  4
   path
   ;;  round
   num-of-passengers
+  speed
+  advance-distance
+  still?
+  time
+]
+
+taxies-own [
+  ;;  transportation
+  trip-mode                ;;  3
+  path
+  ;;  round
+  is-ordered?
+  is-occupied?
   speed
   advance-distance
   still?
@@ -131,7 +148,9 @@ to setup-globals
   set deceleration         0.5
   set event-duration       50
   set bus-duration         2
+  set taxi-duration        2
   set buffer-distance      0.6
+  set taxi-detect-distance 5
   set money                0
 end
 
@@ -255,7 +274,7 @@ to setup-citizens
       set earning-power     5
 
       ;;  set has-car?
-      ifelse random 100 < 50 [  ;; TODO 50%
+      ifelse random 100 < 0 [  ;; TODO 50%
         set has-car? true
         set color    magenta
       ][
@@ -302,7 +321,7 @@ end
 ;; Transportation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;
+;;  fundamental movement
 to advance [len]
   ifelse (advance-distance > len) [
     fd len
@@ -319,6 +338,7 @@ to halt [duration]
   set speed  0
 end
 
+;;  bus-related
 to passengers-off
   let this  self
   ifelse length path > 0 [
@@ -365,6 +385,21 @@ to on-off-at-bus-stop
   ]
 end
 
+;;  taxi-related
+to-report find-taxi
+  let this             self
+  let available-taxies taxies with [is-ordered? = false and is-occupied? = false]
+  let target-taxi      nobody
+  if (count available-taxies > 0)[
+    set target-taxi min-one-of available-taxies [distance self]
+    if (distance target-taxi <= taxi-detect-distance)[
+      report target-taxi
+    ]
+  ]
+  report nobody
+end
+
+;;  set
 to set-speed
   let max-speed person-speed
   ifelse (trip-mode = 1 or trip-mode = 3) [
@@ -439,11 +474,17 @@ to set-speed
   ]
 end
 
-to set-duration [mode]
-  ifelse (mode = 4)[         ;; bus
-    halt bus-duration
-  ][                         ;; person
+to set-duration
+  ifelse (trip-mode = 1)[         ;; person
     halt event-duration
+  ][
+    ifelse (trip-mode = 3)[
+      halt taxi-duration
+    ][
+      if (trip-mode = 4)[
+        halt bus-duration
+      ]
+    ]
   ]
 end
 
@@ -468,7 +509,21 @@ to set-trip-mode
     ifelse has-car? [
       set trip-mode 1
     ][
-      set trip-mode 2
+;      let target-taxi find-taxi
+;      ifelse (target-taxi != nobody) [
+;        let this self
+;        ask target-taxi [
+;          let departure   one-of vertices-on patch-here
+;          let destination one-of vertices-on [patch-here] of self
+;          set path        find-path departure destination 3
+;          set is-ordered? true
+;        ]
+;        set trip-mode 3
+;      ][
+;        set trip-mode 2
+;      ]
+
+      set trip-mode 2  ;; debug
     ]
   ]
 end
@@ -477,15 +532,26 @@ to set-path
   let origin-point     nobody
   let terminal-point   nobody
   let mode             0
-  ifelse breed = buses [
-    set origin-point   origin-station
-    set terminal-point terminal-station
-    set mode           4
-  ][
+  if breed = citizens [
     set origin-point   residence
     set terminal-point company
     set-trip-mode
     set mode           trip-mode
+  ]
+  if breed = buses [
+    set origin-point   origin-station
+    set terminal-point terminal-station
+    set mode           4
+  ]
+  if breed = taxies [
+    set origin-point   one-of vertices-on patch-here
+    set terminal-point one-of companies
+    ifelse (terminal-point = patch-here) [
+      set terminal-point one-of vertices-on one-of residences
+    ][
+      set terminal-point one-of vertices-on terminal-point
+    ]
+    set mode           3
   ]
 
   if (patch-here = [patch-here] of origin-point)[
@@ -496,6 +562,7 @@ to set-path
   ]
 end
 
+;;  basic behavior
 to watch-traffic-light
   if ([land-type] of patch-here = "road" and [pcolor] of patch-here = red)[
     halt 0
@@ -509,6 +576,18 @@ to stay
   if (time = 1)[
     set time time - 1
     set still? false
+
+    ;; citizen
+    if breed = citizens [
+      if (patch-here = [patch-here] of company)[
+        set money money + earning-power
+      ]
+      lt 180
+      face first path
+      set-moving-shape
+    ]
+
+    ;; bus
     if breed = buses [
       ;; passengers on
       let next-station       first path
@@ -531,13 +610,15 @@ to stay
         lt 180
       ]
     ]
-    if breed = citizens [
-      if (patch-here = [patch-here] of company)[
-        set money money + earning-power
-      ]
+
+    ;; taxi
+    if breed = taxies [
+;      if (is-ordered?)[
+;        set is-ordered?  false
+;        set is-occupied? true
+;      ]
       lt 180
       face first path
-      set-moving-shape
     ]
   ]
   if time > 1 [
@@ -572,8 +653,9 @@ to move [mode]
       ifelse (distance next-vertex < 0.0001) [  ;; arrived at destination
         set path []
         on-off-at-bus-stop
+
         ;; wait
-        set-duration mode
+        set-duration
         ;; set default shape
         set-static-shape
         ;; set path
@@ -586,6 +668,7 @@ to move [mode]
   ]
 end
 
+;;  uniform controller
 to progress
   ask citizens [
     if (count bus-link-neighbors = 0)[
@@ -598,6 +681,14 @@ to progress
     ]
   ]
   ask buses [
+    watch-traffic-light
+    ifelse still? [
+      stay
+    ][
+      move trip-mode
+    ]
+  ]
+  ask taxies [
     watch-traffic-light
     ifelse still? [
       stay
@@ -619,6 +710,7 @@ to change-traffic-light
   ]
 end
 
+;;  command
 to go
   progress
   mouse-manager
@@ -665,33 +757,71 @@ to add-bus-stop
     let controller nobody
     sprout-buses 1 [
       ;; set basic properties
-      set origin-station    origin-station-vertex
-      set terminal-station  terminal-station-vertex
+      set origin-station     origin-station-vertex
+      set terminal-station   terminal-station-vertex
       ;; set transportation properties
-      set num-of-passengers 0
-      set speed             bus-speed
-      set still?            false
-      set time              0
-      set trip-mode         4
+      set num-of-passengers  0
+      set speed              bus-speed
+      set still?             false
+      set time               0
+      set trip-mode          4
 
       ;; set path
-      set path             but-first bus-line
+      set path               but-first bus-line
 
       ;; set parameters for the mapping bus
       face first path
-      set bus-heading      heading
-      set controller       self
-      hide-turtle          ;; debug
+      set bus-heading        heading
+      set controller         self
+      hide-turtle            ;; debug
     ]
     sprout-mapping-buses 1 [
-      set shape            "bus"
-      set color            yellow
-      set size             1.5
-      set heading          bus-heading
+      set shape              "bus"
+      set color              gray + 2
+      set size               1.5
+      set heading            bus-heading
       rt 90
       fd 0.25
       lt 90
-      create-map-link-with controller [tie]
+      create-map-link-with   controller [tie]
+    ]
+  ]
+end
+
+to add-taxi
+  ask one-of companies [
+    let taxi-heading         0
+    let controller           nobody
+    sprout-taxies 1 [
+      ;;  transportation
+      let departure          one-of vertices-on patch-here
+      let destination        one-of companies
+      ifelse (destination = patch-here) [
+        set destination      one-of vertices-on one-of residences
+      ][
+        set destination      one-of vertices-on destination
+      ]
+      set trip-mode          3
+      set path               find-path departure destination trip-mode
+      ;;  round
+      set is-occupied?       false
+      set speed              bus-speed
+      set still?             false
+      set time               0
+      ;; set parameters for the mapping taxi
+      face first path
+      set taxi-heading       heading
+      set controller         self
+      hide-turtle            ;; debug
+    ]
+    sprout-mapping-taxies 1 [
+      set shape              "van top"
+      set color              yellow
+      set heading            taxi-heading
+      rt 90
+      fd 0.25
+      lt 90
+      create-map-link-with   controller [tie]
     ]
   ]
 end
@@ -813,10 +943,10 @@ ticks
 30.0
 
 BUTTON
-12
-85
-80
-118
+51
+160
+119
+193
 NIL
 setup
 NIL
@@ -830,10 +960,10 @@ NIL
 1
 
 BUTTON
-12
-130
-80
-163
+51
+205
+119
+238
 NIL
 go
 T
@@ -847,10 +977,10 @@ NIL
 1
 
 BUTTON
-12
-176
-81
-209
+51
+251
+120
+284
 NIL
 go
 NIL
@@ -864,10 +994,10 @@ NIL
 1
 
 MONITOR
-13
-227
-70
-272
+52
+302
+109
+347
 NIL
 money
 17
@@ -883,11 +1013,28 @@ initial-people-num
 initial-people-num
 0
 100
-80.0
+5.0
 1
 1
 NIL
 HORIZONTAL
+
+BUTTON
+43
+80
+126
+113
+Add taxi
+add-taxi
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
