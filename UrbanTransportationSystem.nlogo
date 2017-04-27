@@ -15,7 +15,7 @@ globals[
   ;;  configuration
   district-width
   district-length
-  initial-people-num
+;  initial-people-num
   company-capacity
   residence-capacity
   bus-capacity
@@ -114,7 +114,7 @@ end
 to setup-config
   set district-width       7
   set district-length      7
-  set initial-people-num   80      ;; TODO 20
+;  set initial-people-num   80
   set company-capacity     5
   set residence-capacity   1
   set bus-capacity         4
@@ -255,7 +255,7 @@ to setup-citizens
       set earning-power     5
 
       ;;  set has-car?
-      ifelse random 100 < 10 [  ;; TODO 50%
+      ifelse random 100 < 50 [  ;; TODO 50%
         set has-car? true
         set color    magenta
       ][
@@ -320,18 +320,21 @@ to halt [duration]
 end
 
 to passengers-off
-  let this            self
+  let this  self
   ifelse length path > 0 [
     let next-station first path
     if (any? bus-link-neighbors)[
       ask bus-link-neighbors [
-        set path but-first path
+        if (distance first path < 0.0001)[
+          set path but-first path
+        ]
         if (first path != next-station)[
           ask link-with this [
             die
           ]
           set still? false
           ask one-of map-link-neighbors [ set size 1.0 ]
+          on-off-at-bus-stop  ;; transfer to another bus
         ]
       ]
     ]
@@ -416,7 +419,7 @@ to set-speed
     ifelse safe-distance < buffer-distance [
       set speed 0
     ][
-      set safe-distance safe-distance - buffer-distance  ;; TODO: buffer distance
+      set safe-distance safe-distance - buffer-distance
       ifelse max-speed > safe-distance[
         let next-speed speed - deceleration
         ifelse (next-speed < 0)[
@@ -503,9 +506,6 @@ to watch-traffic-light
 end
 
 to stay
-  if time > 1 [
-    set time time - 1
-  ]
   if (time = 1)[
     set time time - 1
     set still? false
@@ -540,6 +540,9 @@ to stay
       set-moving-shape
     ]
   ]
+  if time > 1 [
+    set time time - 1
+  ]
 end
 
 to move [mode]
@@ -548,7 +551,7 @@ to move [mode]
   while [advance-distance > 0 and length path > 1] [
     watch-traffic-light
     let next-vertex first path
-    if (distance next-vertex < 0.00001) [
+    if (distance next-vertex < 0.0001) [
       set path but-first path
       set next-vertex first path
       on-off-at-bus-stop
@@ -566,7 +569,7 @@ to move [mode]
       watch-traffic-light
       let next-vertex first path
       face next-vertex
-      ifelse (distance next-vertex < 0.00001) [  ;; arrived at destination
+      ifelse (distance next-vertex < 0.0001) [  ;; arrived at destination
         set path []
         on-off-at-bus-stop
         ;; wait
@@ -781,9 +784,9 @@ to-report find-path [source target mode]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-127
+168
 10
-723
+764
 607
 -1
 -1
@@ -808,10 +811,10 @@ ticks
 30.0
 
 BUTTON
-15
-16
-83
-49
+12
+85
+80
+118
 NIL
 setup
 NIL
@@ -825,10 +828,10 @@ NIL
 1
 
 BUTTON
-15
-61
-83
-94
+12
+130
+80
+163
 NIL
 go
 T
@@ -842,10 +845,10 @@ NIL
 1
 
 BUTTON
-15
-107
-84
-140
+12
+176
+81
+209
 NIL
 go
 NIL
@@ -859,15 +862,30 @@ NIL
 1
 
 MONITOR
-16
-158
-73
-203
+13
+227
+70
+272
 NIL
 money
 17
 1
 11
+
+SLIDER
+3
+10
+164
+43
+initial-people-num
+initial-people-num
+0
+100
+5.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
