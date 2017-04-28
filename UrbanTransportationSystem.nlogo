@@ -4,10 +4,11 @@ breed [buses             bus]
 breed [mapping-buses     mapping-bus]
 breed [taxies            taxi]
 breed [mapping-taxies    mapping-taxi]
-breed [vertices          vertex]             ;; Graph Algorithm
-undirected-link-breed [edges      edge]      ;; Graph Algorithm
-undirected-link-breed [map-links  map-link]  ;; link between controller and entity
-undirected-link-breed [bus-links  bus-link]  ;; link between bus and passenger
+breed [vertices          vertex]               ;; Graph Algorithm
+undirected-link-breed [edges       edge]       ;; Graph Algorithm
+undirected-link-breed [map-links   map-link]   ;; link between controller and entity
+undirected-link-breed [bus-links   bus-link]   ;; link between bus and passenger
+undirected-link-breed [taxi-links  taxi-link]  ;; link between taxi and passenger
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Variables
@@ -36,7 +37,6 @@ globals[
   bus-duration             ;;  bus: wait
   taxi-duration            ;;  taxi: wait
   buffer-distance          ;;  safe distance to the car ahead
-  taxi-detect-distance     ;;  citizen's ability to detect taxi
   ;;  game parameter
   money
   ;;  patch-set
@@ -60,9 +60,22 @@ citizens-own[
   ;;  game
   earning-power
   ;;  transportation
-  trip-mode                ;;  1: car, 2: bus, 3: taxi
+  trip-mode                ;;  1: take car, 2: take bus, 3: take taxi
   path
   ;; round
+  speed
+  advance-distance
+  still?
+  time
+]
+
+taxies-own [
+  ;;  transportation
+  trip-mode                ;;  4: taxi
+  path
+  ;;  round
+  is-ordered?
+  is-occupied?
   speed
   advance-distance
   still?
@@ -74,23 +87,10 @@ buses-own [
   origin-station           ;;  vertex
   terminal-station         ;;  vertex
   ;;  transportation
-  trip-mode                ;;  4
+  trip-mode                ;;  5: bus
   path
   ;;  round
   num-of-passengers
-  speed
-  advance-distance
-  still?
-  time
-]
-
-taxies-own [
-  ;;  transportation
-  trip-mode                ;;  3
-  path
-  ;;  round
-  is-ordered?
-  is-occupied?
   speed
   advance-distance
   still?
@@ -150,7 +150,6 @@ to setup-globals
   set bus-duration         2
   set taxi-duration        2
   set buffer-distance      0.6
-  set taxi-detect-distance 5
   set money                0
 end
 
@@ -338,6 +337,20 @@ to halt [duration]
   set speed  0
 end
 
+;;  taxi-related
+to-report find-taxi
+  let this             self
+  let available-taxies taxies with [is-ordered? = false and is-occupied? = false]
+  let target-taxi      nobody
+  if (count available-taxies > 0)[
+    set target-taxi min-one-of available-taxies [distance this]
+    if (distance target-taxi <= taxi-detect-distance)[
+      report target-taxi
+    ]
+  ]
+  report nobody
+end
+
 ;;  bus-related
 to passengers-off
   let this  self
@@ -354,7 +367,7 @@ to passengers-off
           ]
           set still? false
           ask one-of map-link-neighbors [ set size 1.0 ]
-          on-off-at-bus-stop  ;; transfer to another bus
+          passengers-on-off  ;; transfer to another bus
         ]
       ]
     ]
@@ -373,36 +386,38 @@ to passengers-off
   ]
 end
 
-to on-off-at-bus-stop
+to passengers-on-off
+  ;; bus
   if trip-mode = 2 [
     if (length path > 0 and distance first path > 1.0001)[
       halt 0
     ]
   ]
-  if trip-mode = 4 [
+  if trip-mode = 5 [
     halt bus-duration
     passengers-off
   ]
-end
-
-;;  taxi-related
-to-report find-taxi
-  let this             self
-  let available-taxies taxies with [is-ordered? = false and is-occupied? = false]
-  let target-taxi      nobody
-  if (count available-taxies > 0)[
-    set target-taxi min-one-of available-taxies [distance self]
-    if (distance target-taxi <= taxi-detect-distance)[
-      report target-taxi
+  ;; taxi
+  if trip-mode = 3 [
+    if (patch-here = [patch-here] of company or patch-here = [patch-here] of residence) [
+      set trip-mode 2
+      ask one-of taxi-link-neighbors [
+        if (is-occupied?)[
+          ask my-taxi-links [die]
+          set is-occupied? false
+          set still?       false
+          set-path
+          face first path
+        ]
+      ]
     ]
   ]
-  report nobody
 end
 
 ;;  set
 to set-speed
   let max-speed person-speed
-  ifelse (trip-mode = 1 or trip-mode = 3) [
+  ifelse (trip-mode = 1 or trip-mode = 3 or trip-mode = 4) [
     set max-speed car-speed
   ][
     ifelse (trip-mode = 2) [
@@ -475,13 +490,13 @@ to set-speed
 end
 
 to set-duration
-  ifelse (trip-mode = 1)[         ;; person
+  ifelse (trip-mode = 1 or trip-mode = 2 or trip-mode = 3)[  ;; person
     halt event-duration
   ][
-    ifelse (trip-mode = 3)[
+    ifelse (trip-mode = 4)[                 ;; taxi
       halt taxi-duration
     ][
-      if (trip-mode = 4)[
+      if (trip-mode = 5)[                   ;; bus
         halt bus-duration
       ]
     ]
@@ -509,21 +524,25 @@ to set-trip-mode
     ifelse has-car? [
       set trip-mode 1
     ][
-;      let target-taxi find-taxi
-;      ifelse (target-taxi != nobody) [
-;        let this self
-;        ask target-taxi [
-;          let departure   one-of vertices-on patch-here
-;          let destination one-of vertices-on [patch-here] of self
-;          set path        find-path departure destination 3
-;          set is-ordered? true
-;        ]
-;        set trip-mode 3
-;      ][
-;        set trip-mode 2
-;      ]
-
-      set trip-mode 2  ;; debug
+      let target-taxi find-taxi
+      ifelse (target-taxi != nobody) [
+        let this self
+        ask target-taxi [
+          let departure   one-of vertices-on patch-here
+          let destination one-of vertices-on [patch-here] of this
+          set path        find-path departure destination 4
+          set is-ordered? true
+          create-taxi-link-with this [
+            set shape     "taxi-link-shape"
+            set color     sky
+            set thickness 0.05
+          ]
+          face first path
+        ]
+        set trip-mode 3
+      ][
+        set trip-mode 2
+      ]
     ]
   ]
 end
@@ -535,13 +554,7 @@ to set-path
   if breed = citizens [
     set origin-point   residence
     set terminal-point company
-    set-trip-mode
     set mode           trip-mode
-  ]
-  if breed = buses [
-    set origin-point   origin-station
-    set terminal-point terminal-station
-    set mode           4
   ]
   if breed = taxies [
     set origin-point   one-of vertices-on patch-here
@@ -551,7 +564,12 @@ to set-path
     ][
       set terminal-point one-of vertices-on terminal-point
     ]
-    set mode           3
+    set mode           4
+  ]
+  if breed = buses [
+    set origin-point   origin-station
+    set terminal-point terminal-station
+    set mode           5
   ]
 
   if (patch-here = [patch-here] of origin-point)[
@@ -574,17 +592,42 @@ end
 
 to stay
   if (time = 1)[
-    set time time - 1
-    set still? false
+    if (trip-mode != 3)[
+      ;; set path
+      set-trip-mode
+      set-path
+      if (trip-mode != 3)[
+        set time time - 1
+        set still? false
+      ]
+    ]
 
     ;; citizen
     if breed = citizens [
-      if (patch-here = [patch-here] of company)[
-        set money money + earning-power
+      ifelse (trip-mode = 3)[
+        let link-taxi one-of taxi-link-neighbors
+        if ([is-ordered?] of link-taxi = true)[
+          if ([patch-here] of link-taxi = patch-here)[
+            ask link-taxi [
+              set is-ordered?  false
+              set is-occupied? true
+            ]
+            ask one-of my-taxi-links [tie]
+            if (patch-here = [patch-here] of company)[
+              set money money + earning-power
+            ]
+            face first path
+            set time time - 1
+            set still? false
+          ]
+        ]
+      ][
+        if (patch-here = [patch-here] of company)[
+          set money money + earning-power
+        ]
+        face first path
+        set-moving-shape
       ]
-      lt 180
-      face first path
-      set-moving-shape
     ]
 
     ;; bus
@@ -613,20 +656,27 @@ to stay
 
     ;; taxi
     if breed = taxies [
-;      if (is-ordered?)[
-;        set is-ordered?  false
-;        set is-occupied? true
-;      ]
-      lt 180
-      face first path
+      ifelse (is-ordered?)[
+        halt 0
+        if ([patch-here] of one-of taxi-link-neighbors = patch-here)[
+          ask one-of my-taxi-links [tie]
+        ]
+      ][
+        face first path
+      ]
     ]
   ]
   if time > 1 [
     set time time - 1
   ]
+  if (time = 0 and breed = taxies and is-ordered? = true and still? = true)[
+    if ([pcolor] of patch-here != red)[
+      set still? false
+    ]
+  ]
 end
 
-to move [mode]
+to move
   set-speed
   set advance-distance speed
   while [advance-distance > 0 and length path > 1] [
@@ -635,7 +685,7 @@ to move [mode]
     if (distance next-vertex < 0.0001) [
       set path but-first path
       set next-vertex first path
-      on-off-at-bus-stop
+      passengers-on-off
     ]
     ifelse not still? [
       face next-vertex
@@ -652,15 +702,12 @@ to move [mode]
       face next-vertex
       ifelse (distance next-vertex < 0.0001) [  ;; arrived at destination
         set path []
-        on-off-at-bus-stop
+        passengers-on-off
 
         ;; wait
         set-duration
         ;; set default shape
         set-static-shape
-        ;; set path
-        set-trip-mode
-        set-path
       ][
         advance distance next-vertex
       ]
@@ -676,7 +723,7 @@ to progress
       ifelse still? [
         stay
       ][
-        move trip-mode
+        move
       ]
     ]
   ]
@@ -685,15 +732,17 @@ to progress
     ifelse still? [
       stay
     ][
-      move trip-mode
+      move
     ]
   ]
   ask taxies [
-    watch-traffic-light
-    ifelse still? [
-      stay
-    ][
-      move trip-mode
+    if (is-occupied? = false)[
+      watch-traffic-light
+      ifelse still? [
+        stay
+      ][
+        move
+      ]
     ]
   ]
 end
@@ -721,6 +770,45 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interaction
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to add-taxi
+  ask one-of companies [
+    let taxi-heading         0
+    let controller           nobody
+    sprout-taxies 1 [
+      ;;  transportation
+      let departure          one-of vertices-on patch-here
+      let destination        one-of companies
+      ifelse (destination = patch-here) [
+        set destination      one-of vertices-on one-of residences
+      ][
+        set destination      one-of vertices-on destination
+      ]
+      set trip-mode          4
+      set path               find-path departure destination trip-mode
+      ;;  round
+      set is-ordered?        false
+      set is-occupied?       false
+      set speed              bus-speed
+      set still?             false
+      set time               0
+      ;; set parameters for the mapping taxi
+      face first path
+      set taxi-heading       heading
+      set controller         self
+      hide-turtle            ;; debug
+    ]
+    sprout-mapping-taxies 1 [
+      set shape              "van top"
+      set color              yellow
+      set heading            taxi-heading
+      rt 90
+      fd 0.25
+      lt 90
+      create-map-link-with   controller [tie]
+    ]
+  ]
+end
 
 to add-bus-stop
   ;; setup
@@ -764,7 +852,7 @@ to add-bus-stop
       set speed              bus-speed
       set still?             false
       set time               0
-      set trip-mode          4
+      set trip-mode          5
 
       ;; set path
       set path               but-first bus-line
@@ -780,44 +868,6 @@ to add-bus-stop
       set color              gray + 2
       set size               1.5
       set heading            bus-heading
-      rt 90
-      fd 0.25
-      lt 90
-      create-map-link-with   controller [tie]
-    ]
-  ]
-end
-
-to add-taxi
-  ask one-of companies [
-    let taxi-heading         0
-    let controller           nobody
-    sprout-taxies 1 [
-      ;;  transportation
-      let departure          one-of vertices-on patch-here
-      let destination        one-of companies
-      ifelse (destination = patch-here) [
-        set destination      one-of vertices-on one-of residences
-      ][
-        set destination      one-of vertices-on destination
-      ]
-      set trip-mode          3
-      set path               find-path departure destination trip-mode
-      ;;  round
-      set is-occupied?       false
-      set speed              bus-speed
-      set still?             false
-      set time               0
-      ;; set parameters for the mapping taxi
-      face first path
-      set taxi-heading       heading
-      set controller         self
-      hide-turtle            ;; debug
-    ]
-    sprout-mapping-taxies 1 [
-      set shape              "van top"
-      set color              yellow
-      set heading            taxi-heading
       rt 90
       fd 0.25
       lt 90
@@ -887,7 +937,7 @@ to dijkstra [source target mode] ;; mode: 1: take car, 2: take bus, 3: take taxi
     let patch-u [patch-here] of u
     ask [edge-neighbors] of u [
       let edge-btw edge [who] of u [who] of self
-      ifelse (mode = 4)[       ;; bus route
+      ifelse (mode = 5)[       ;; bus route
         if ([bus-route?] of edge-btw = true)[
           relax u self edge-btw
         ]
@@ -916,9 +966,9 @@ to-report find-path [source target mode]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-168
+185
 10
-764
+781
 607
 -1
 -1
@@ -1013,17 +1063,17 @@ initial-people-num
 initial-people-num
 0
 100
-5.0
+34.0
 1
 1
 NIL
 HORIZONTAL
 
 BUTTON
-43
-80
-126
-113
+46
+94
+120
+127
 Add taxi
 add-taxi
 NIL
@@ -1035,6 +1085,21 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+3
+48
+163
+81
+taxi-detect-distance
+taxi-detect-distance
+0
+50
+20.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1471,6 +1536,17 @@ dotted
 0.0
 -0.2 0 0.0 1.0
 0.0 1 4.0 4.0
+0.2 0 0.0 1.0
+link direction
+true
+0
+Line -7500403 true 150 150 90 180
+Line -7500403 true 150 150 210 180
+
+taxi-link-shape
+0.0
+-0.2 0 0.0 1.0
+0.0 1 2.0 2.0
 0.2 0 0.0 1.0
 link direction
 true
