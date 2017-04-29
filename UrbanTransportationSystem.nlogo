@@ -528,16 +528,19 @@ to set-trip-mode
       ifelse (target-taxi != nobody) [
         let this self
         ask target-taxi [
-          let departure   one-of vertices-on patch-here
-          let destination one-of vertices-on [patch-here] of this
-          set path        find-path departure destination 4
+          ;;  taxi is already on the patch of passenger
+          if (patch-here != [patch-here] of this)[
+            let departure   one-of vertices-on patch-here
+            let destination one-of vertices-on [patch-here] of this
+            set path        find-path departure destination 4
+            face first path
+          ]
           set is-ordered? true
           create-taxi-link-with this [
             set shape     "taxi-link-shape"
             set color     sky
             set thickness 0.05
           ]
-          face first path
         ]
         set trip-mode 3
       ][
