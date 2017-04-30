@@ -450,7 +450,7 @@ to set-speed
   ]
   if turtles-ahead != nobody [
     set vehicles-ahead turtles-ahead with[
-      (shape = "car top" or shape = "van top" or shape = "bus") ;; private car, taxi and bus
+      (shape = "car top" or shape = "van top" or shape = "bus")  ;; private car, taxi and bus
     ]
   ]
   ifelse (vehicles-ahead != nobody and count vehicles-ahead > 0 and any? vehicles-ahead with [distance this = 0])[
@@ -468,6 +468,14 @@ to set-speed
       if (jam-ahead != nobody and count jam-ahead > 0) [
         set nearest-vehicle min-one-of jam-ahead [distance this]
         set safe-distance distance nearest-vehicle
+      ]
+    ]
+
+    ;;  slow down before the red light
+    if (patch-ahead 1 != nobody and [pcolor] of patch-ahead 1 = red)[
+      let red-light-distance (distance patch-ahead 1)
+      if (red-light-distance < safe-distance)[
+        set safe-distance red-light-distance
       ]
     ]
 
@@ -629,9 +637,6 @@ to stay
               set is-ordered?  false
               set is-occupied? true
               set heading      [heading] of this
-;              ask one-of map-link-neighbors [
-;                set heading    [heading] of this
-;              ]
             ]
             ask one-of my-taxi-links [tie]
             if (patch-here = [patch-here] of company)[
@@ -1080,8 +1085,8 @@ SLIDER
 initial-people-num
 initial-people-num
 0
-100
-28.0
+150
+100.0
 1
 1
 NIL
@@ -1113,7 +1118,7 @@ taxi-detect-distance
 taxi-detect-distance
 0
 50
-20.0
+12.0
 1
 1
 NIL
@@ -1128,7 +1133,7 @@ has-car-ratio
 has-car-ratio
 0
 100
-0.0
+30.0
 1
 1
 NIL
