@@ -273,7 +273,7 @@ to setup-citizens
       set earning-power     5
 
       ;;  set has-car?
-      ifelse random 100 < 0 [  ;; TODO 50%
+      ifelse random 100 < has-car-ratio [
         set has-car? true
         set color    magenta
       ][
@@ -430,22 +430,27 @@ to set-speed
   ;; agent can only see one patch ahead of it
   let controller      self
   let this            one-of map-link-neighbors
+  let my-taxi         self
   let turtles-ahead   nobody
   let vehicles-ahead  nobody
   let jam-ahead       nobody
   let nearest-vehicle nobody
   let safe-distance   100    ;; positive infinity
 
+  if (count taxi-link-neighbors > 0)[
+    set my-taxi       one-of [map-link-neighbors] of one-of taxi-link-neighbors
+  ]
+
   ifelse patch-ahead 1 != nobody [
     set turtles-ahead (turtle-set (other turtles-here) (turtles-on patch-ahead 1))
-    with [who != [who] of this]
+    with [who != [who] of this and who != [who] of my-taxi]  ;; not my mapping vehicle or my taxi
   ][
     set turtles-ahead turtle-set (other turtles-here)
-    with [who != [who] of this]
+    with [who != [who] of this and who != [who] of my-taxi]
   ]
   if turtles-ahead != nobody [
     set vehicles-ahead turtles-ahead with[
-      (shape = "car top" or shape = "bus")
+      (shape = "car top" or shape = "van top" or shape = "bus") ;; private car, taxi and bus
     ]
   ]
   ifelse (vehicles-ahead != nobody and count vehicles-ahead > 0 and any? vehicles-ahead with [distance this = 0])[
@@ -529,11 +534,13 @@ to set-trip-mode
         let this self
         ask target-taxi [
           ;;  taxi is already on the patch of passenger
-          if (patch-here != [patch-here] of this)[
+          ifelse (patch-here != [patch-here] of this)[
             let departure   one-of vertices-on patch-here
             let destination one-of vertices-on [patch-here] of this
             set path        find-path departure destination 4
             face first path
+          ][
+            set path []
           ]
           set is-ordered? true
           create-taxi-link-with this [
@@ -969,9 +976,9 @@ to-report find-path [source target mode]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-185
+178
 10
-781
+774
 607
 -1
 -1
@@ -996,10 +1003,10 @@ ticks
 30.0
 
 BUTTON
-51
-160
-119
-193
+49
+131
+117
+164
 NIL
 setup
 NIL
@@ -1013,10 +1020,10 @@ NIL
 1
 
 BUTTON
-51
-205
-119
-238
+49
+176
+117
+209
 NIL
 go
 T
@@ -1030,10 +1037,10 @@ NIL
 1
 
 BUTTON
-51
-251
-120
-284
+49
+222
+118
+255
 NIL
 go
 NIL
@@ -1047,10 +1054,10 @@ NIL
 1
 
 MONITOR
-52
-302
-109
-347
+56
+361
+113
+406
 NIL
 money
 17
@@ -1060,23 +1067,23 @@ money
 SLIDER
 3
 10
-164
+163
 43
 initial-people-num
 initial-people-num
 0
 100
-34.0
+20.0
 1
 1
 NIL
 HORIZONTAL
 
 BUTTON
-46
-94
-120
-127
+47
+290
+121
+323
 Add taxi
 add-taxi
 NIL
@@ -1098,7 +1105,22 @@ taxi-detect-distance
 taxi-detect-distance
 0
 50
-20.0
+16.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+3
+86
+163
+119
+has-car-ratio
+has-car-ratio
+0
+100
+0.0
 1
 1
 NIL
