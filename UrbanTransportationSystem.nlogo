@@ -568,7 +568,11 @@ to set-path
   ]
   if breed = taxies [
     set origin-point   one-of vertices-on patch-here
-    set terminal-point one-of companies
+    ifelse (is-ordered? = true)[
+      set terminal-point [patch-here] of one-of taxi-link-neighbors
+    ][
+      set terminal-point one-of companies
+    ]
     ifelse (terminal-point = patch-here) [
       set terminal-point one-of vertices-on one-of residences
     ][
