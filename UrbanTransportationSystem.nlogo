@@ -619,12 +619,15 @@ to stay
     ;; citizen
     if breed = citizens [
       ifelse (trip-mode = 3)[
+        let this      self
         let link-taxi one-of taxi-link-neighbors
         if ([is-ordered?] of link-taxi = true)[
           if ([patch-here] of link-taxi = patch-here)[
             ask link-taxi [
+              halt 0
               set is-ordered?  false
               set is-occupied? true
+              set heading      [heading] of this
             ]
             ask one-of my-taxi-links [tie]
             if (patch-here = [patch-here] of company)[
@@ -672,9 +675,6 @@ to stay
     if breed = taxies [
       ifelse (is-ordered?)[
         halt 0
-        if ([patch-here] of one-of taxi-link-neighbors = patch-here)[
-          ask one-of my-taxi-links [tie]
-        ]
       ][
         face first path
       ]
@@ -1077,7 +1077,7 @@ initial-people-num
 initial-people-num
 0
 100
-20.0
+16.0
 1
 1
 NIL
