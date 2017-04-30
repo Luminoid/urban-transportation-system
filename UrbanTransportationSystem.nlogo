@@ -625,9 +625,13 @@ to stay
           if ([patch-here] of link-taxi = patch-here)[
             ask link-taxi [
               halt 0
+              move-to patch-here
               set is-ordered?  false
               set is-occupied? true
               set heading      [heading] of this
+;              ask one-of map-link-neighbors [
+;                set heading    [heading] of this
+;              ]
             ]
             ask one-of my-taxi-links [tie]
             if (patch-here = [patch-here] of company)[
@@ -1077,7 +1081,7 @@ initial-people-num
 initial-people-num
 0
 100
-16.0
+28.0
 1
 1
 NIL
@@ -1109,7 +1113,7 @@ taxi-detect-distance
 taxi-detect-distance
 0
 50
-16.0
+20.0
 1
 1
 NIL
