@@ -259,59 +259,66 @@ to setup-map
   ]
 end
 
+to setup-citizen
+  ;;  set company
+  let my-company one-of companies with [num < company-capacity]
+  if (my-company = nobody)[
+
+  ]
+  ask my-company [ set num num + 1 ]
+
+  ;;  set basic properties
+  set residence         one-of vertices-on patch-here
+  set company           one-of vertices-on my-company
+  set earning-power     5
+
+  ;;  set has-car?
+  ifelse random 100 < has-car-ratio [
+    set has-car? true
+    set color    magenta
+  ][
+    set has-car? false
+    set color    cyan
+  ]
+
+  ;;  set transportation properties
+  set speed             person-speed
+  set advance-distance  0
+  set still?            false
+  set time              0
+
+  ;;  set trip-mode
+  set-trip-mode
+
+  ;;  set path
+  set path find-path residence company trip-mode
+
+  ;;  hatch mapping person
+  face first path
+  let controller         self
+  let controller-heading heading
+  hide-turtle            ;; debug
+
+  hatch-mapping-citizens 1 [
+    set shape          "person business"
+    set color          color
+    set heading        heading
+    rt 90
+    fd 0.25
+    lt 90
+    create-map-link-with controller [tie]
+    show-turtle
+  ]
+
+  ;;  set shape
+  set-moving-shape
+end
+
 to setup-citizens
   set-default-shape citizens "person business"
   ask residences [
     sprout-citizens residence-capacity [
-      ;;  set company
-      let my-company one-of companies with [num < company-capacity]
-      ask my-company [ set num num + 1 ]
-
-      ;;  set basic properties
-      set residence         one-of vertices-on patch-here
-      set company           one-of vertices-on my-company
-      set earning-power     5
-
-      ;;  set has-car?
-      ifelse random 100 < has-car-ratio [
-        set has-car? true
-        set color    magenta
-      ][
-        set has-car? false
-        set color    cyan
-      ]
-
-      ;;  set transportation properties
-      set speed             person-speed
-      set advance-distance  0
-      set still?            false
-      set time              0
-
-      ;;  set trip-mode
-      set-trip-mode
-
-      ;;  set path
-      set path find-path residence company trip-mode
-
-      ;;  hatch mapping person
-      face first path
-      let controller         self
-      let controller-heading heading
-      hide-turtle            ;; debug
-
-      hatch-mapping-citizens 1 [
-        set shape          "person business"
-        set color          color
-        set heading        heading
-        rt 90
-        fd 0.25
-        lt 90
-        create-map-link-with controller [tie]
-        show-turtle
-      ]
-
-      ;;  set shape
-      set-moving-shape
+      setup-citizen
     ]
   ]
 end
@@ -794,6 +801,10 @@ end
 ;; Interaction
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+to add-citizen
+
+end
+
 to add-taxi
   ask one-of companies [
     let taxi-heading         0
@@ -1086,7 +1097,7 @@ initial-people-num
 initial-people-num
 0
 150
-100.0
+54.0
 1
 1
 NIL
@@ -1138,6 +1149,64 @@ has-car-ratio
 1
 NIL
 HORIZONTAL
+
+PLOT
+785
+66
+1074
+221
+Average Taxi Carring Rate
+Time
+Rate
+0.0
+10.0
+0.0
+100.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "ifelse count taxies > 0[\n  plot (count taxies with [is-occupied? = true] + 0.0) / (count taxies) * 100\n][\n  plot 0\n]\n" "ifelse count taxies > 0[\n  plot (count taxies with [is-occupied? = true] + 0.0) / (count taxies) * 100\n][\n  plot 0\n]\n\n"
+
+MONITOR
+784
+13
+900
+58
+Number of taxies
+count taxies
+17
+1
+11
+
+MONITOR
+909
+13
+1025
+58
+Number of buses
+count buses
+17
+1
+11
+
+PLOT
+785
+231
+1074
+391
+Average Bus Carring Number
+Time
+Number
+0.0
+10.0
+0.0
+10.0
+true
+false
+"set-plot-y-range 0 bus-capacity\n  set-plot-x-range 0 10" ""
+PENS
+"default" 1.0 0 -16777216 true "ifelse count buses > 0[\n  plot (count citizens with [count my-bus-links > 0] + 0.0) / (count buses)\n][\n  plot 0\n]\n\n" "ifelse count buses > 0[\n  plot (count citizens with [count my-bus-links > 0] + 0.0) / (count buses)\n][\n  plot 0\n]\n"
 
 @#$#@#$#@
 ## WHAT IS IT?
