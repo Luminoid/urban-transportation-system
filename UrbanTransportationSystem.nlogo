@@ -347,15 +347,12 @@ end
 ;;  taxi-related
 to-report find-taxi
   let this             self
-  let available-taxies taxies with [is-ordered? = false and is-occupied? = false]
-  let target-taxi      nobody
-  if (count available-taxies > 0)[
-    set target-taxi min-one-of available-taxies [distance this]
-    if (distance target-taxi <= taxi-detect-distance)[
-      report target-taxi
-    ]
+  let available-taxies ((taxies with [is-ordered? = false and is-occupied? = false]) in-radius taxi-detect-distance)
+  ifelse count available-taxies > 0 [
+    report min-one-of available-taxies [distance this]
+  ][
+    report nobody
   ]
-  report nobody
 end
 
 ;;  bus-related
@@ -1144,7 +1141,7 @@ has-car-ratio
 has-car-ratio
 0
 100
-30.0
+0.0
 1
 1
 NIL
@@ -1206,7 +1203,7 @@ true
 false
 "set-plot-y-range 0 bus-capacity\n  set-plot-x-range 0 10" ""
 PENS
-"default" 1.0 0 -16777216 true "ifelse count buses > 0[\n  plot (count citizens with [count my-bus-links > 0] + 0.0) / (count buses)\n][\n  plot 0\n]\n\n" "ifelse count buses > 0[\n  plot (count citizens with [count my-bus-links > 0] + 0.0) / (count buses)\n][\n  plot 0\n]\n"
+"default" 1.0 0 -16777216 true "ifelse count buses > 0[\n  plot mean [count my-bus-links] of buses\n][\n  plot 0\n]\n\n" "ifelse count buses > 0[\n  plot mean [count my-bus-links] of buses\n][\n  plot 0\n]\n"
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1626,6 +1623,22 @@ NetLogo 6.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="experiment" repetitions="1" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>count turtles</metric>
+    <enumeratedValueSet variable="initial-people-num">
+      <value value="54"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="taxi-detect-distance">
+      <value value="12"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="has-car-ratio">
+      <value value="0"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default
