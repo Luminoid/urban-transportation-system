@@ -233,6 +233,19 @@ to setup-estates
   ]
 end
 
+to setup-graph
+  let isTerminal? ([land-type] of patch-here = "residence" or [land-type] of patch-here = "company")
+  create-edges-with vertices-on neighbors4 with [land-type = "road"][
+    set shape "dotted"
+    set bus-route? false
+    ifelse (isTerminal?)[
+      set cost 20
+    ][
+      set cost 10
+    ]
+  ]
+end
+
 to setup-map
   ;;  initialize vertices
   ask roads [
@@ -246,16 +259,7 @@ to setup-map
   ]
   ;;  initialize edges
   ask vertices [
-    let isTerminal? ([land-type] of patch-here = "residence" or [land-type] of patch-here = "company")
-    create-edges-with vertices-on neighbors4 with [land-type = "road"][
-      set shape "dotted"
-      set bus-route? false
-      ifelse (isTerminal?)[
-        set cost 20
-      ][
-        set cost 10
-      ]
-    ]
+    setup-graph
   ]
 end
 
@@ -263,7 +267,17 @@ to setup-citizen
   ;;  set company
   let my-company one-of companies with [num < company-capacity]
   if (my-company = nobody)[
-
+    let new-company one-of company-district with [land-type = "idle-estate"]
+    ask new-company [
+      set land-type "company"
+      set pcolor blue
+      set num 0
+      sprout-vertices 1 [
+        setup-graph
+        hide-turtle
+      ]
+    ]
+    set companies (patch-set companies new-company)
   ]
   ask my-company [ set num num + 1 ]
 
