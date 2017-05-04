@@ -1307,9 +1307,19 @@ User should schedule public traffic so that citizens don't have to walk all the 
 
 ## EXTENDING THE MODEL
 
+### Vehicle Detection
+
+Limited by the implementation and language capacity, detecting vehicles ahead has low-precision.
+
+### Collision Detection
+
 Since agents don't take up space in NetLogo but their images do, a better way to avoid traffic collision, in the format of image overlapping, is in demand.
 
-The implementation of two-lane road can also be polished, like traffic lights of two directions and integrated turning animation.
+### Practical Two-Lane Road
+
+The implementation of two-lane road can be polished, like traffic lights of two directions and integrated turning animation.
+
+### Variety
 
 More vehicle types and terrain can be included.
 
