@@ -1222,42 +1222,56 @@ PENS
 @#$#@#$#@
 ## WHAT IS IT?
 
-This is an urban transportation model simulating citizens' commuting by private cars, taxies and buses. It contains four subdivision systems: citizens, taxies, buses and traffic lights. User can manipulate this traffic system by setting the number of citizens, regulating the number of taxies and creating bus lines.
+This is an urban transportation model simulating citizens' commuting by private cars, taxies and buses. It contains four subdivision systems: citizens, taxies, buses and traffic lights. User can manipulate this transportation system by setting the number of citizens, regulating the number of taxies and creating bus lines.
 
 ## HOW IT WORKS
 
-Every citizen has its own residence and company. The citizen's goal is to move back and forth between the residence and the company. If the citizen has a private car, then he commutes by his own car. Otherwise, he either takes taxi if there is one nearby or takes bus.
+The whole city is presented as grid. There are different kinds of patches: land, road, bus-stop, residence, company and idle-estate. The roads, residences and companies have their corresponding vertices which logically form a graph.
+
+Every citizen has its own residence and company. The citizen's goal is to move back and forth between his residence and his company. If the citizen has a private car, then he commutes by his own car. Otherwise, he either takes taxi if there exists idle one nearby or takes bus. The shortest path from origin to destination will be calculated using Dijkstra Algorithm by the program itself.
 
 All vehicles are running in the two-lane roads and abide by the traffic lights. Vehicles will decelerate when there are other vehicles or red light ahead, and accelerate until reaching the max speed in other situations.
 
-Taxi travels randomly from house to house when free and buses are driven alongside the its bus line continuously. Traffic lights switch periodically.
+Taxies travel randomly from house to house when idle and buses are driven alongside their bus lines continuously. One taxi can only carry one passenger, meanwhile, one bus can carry up to 4 passengers. Traffic lights switch periodically.
 
-Whether citizens can reach the destination as soon as possible depends on the reasonable planning of public traffic and fewer traffic congestion. User can learn about the utilization of public traffic (taxies and buses) and average commuting time by observe graphical data. 
+Whether citizens can reach the destination as soon as possible depends on the reasonable planning of public traffic and fewer traffic congestion. User can learn about the utilization of public traffic (taxies and buses) and average commuting time by observing graphical data.
+
+### Patch Color
+Land        -- deeper brown
+Idle-estate -- deep brown
+Residence   -- yellow
+Company     -- blue
+Road        -- light gray
+Red light   -- red
+Green light -- green
 
 ## HOW TO USE IT
 
 Whole system will be initialized after SETUP button is pressed. After that, user can press the GO button to start the system. 
 
-Taxies can be added by ADD TAXI button. Bus lines can be created by clicking two defferent road patches when system is running.
+Taxies can be added by ADD TAXI button. Bus lines can be created by clicking two different road patches when system is running.
 
 ### Plots
-Average Taxi Carring Rate  -- displays the proportion of taxies with passenger over time
-Average Bus Carring Number -- displays the average number of passengers on each bus over time
-Average Commuting Time     -- displays the average time of each commuting
+
+Average Taxi Carrying Rate  -- displays the proportion of taxies with passenger over time
+Average Bus Carrying Number -- displays the average number of passengers on each bus over time
+Average Commuting Time      -- displays the average time of each commuting
 
 ## THINGS TO NOTICE
 
-Bus lines and taxies have to be added cautiously in case traffic jam happens frequently.
+Bus lines and taxies have to be added cautiously in case traffic jams happen frequently.
 
 ## THINGS TO TRY
 
-User should schedule public traffic so that citizens don't have to walk to the destination which is pretty slow and empty loading rate should be reduced to avoid redundant vehicles causing traffic jams.
+User should schedule public traffic so that citizens don't have to walk all the way to the destination which is pretty inefficient and empty loading rate should be reduced to avoid redundant vehicles causing traffic jams.
 
 ## EXTENDING THE MODEL
 
-Since agents take up no space in NetLogo, a better way to avoid traffic collision is in demand.
+Since agents don't take up space in NetLogo but their images do, a better way to avoid traffic collision, in the format of image overlapping, is in demand.
 
-The implementation of two-line road can also be polished, like traffic lights of two directions and integrated turning effect.
+The implementation of two-lane road can also be polished, like traffic lights of two directions and integrated turning animation.
+
+More vehicle types and terrain can be included.
 
 ## NETLOGO FEATURES
 
