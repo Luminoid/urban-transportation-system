@@ -768,14 +768,6 @@ to progress
       ]
     ]
   ]
-  ask buses [
-    watch-traffic-light
-    ifelse still? [
-      stay
-    ][
-      move
-    ]
-  ]
   ask taxies [
     if (is-occupied? = false)[
       watch-traffic-light
@@ -784,6 +776,14 @@ to progress
       ][
         move
       ]
+    ]
+  ]
+  ask buses [
+    watch-traffic-light
+    ifelse still? [
+      stay
+    ][
+      move
     ]
   ]
 end
@@ -1072,11 +1072,11 @@ NIL
 1
 
 BUTTON
-49
-222
-118
-255
-NIL
+43
+224
+124
+257
+go once
 go
 NIL
 1
@@ -1222,39 +1222,54 @@ PENS
 @#$#@#$#@
 ## WHAT IS IT?
 
-(a general understanding of what the model is trying to show or explain)
+This is an urban transportation model simulating citizens' commuting by private cars, taxies and buses. It contains four subdivision systems: citizens, taxies, buses and traffic lights. User can manipulate this traffic system by setting the number of citizens, regulating the number of taxies and creating bus lines.
 
 ## HOW IT WORKS
 
-(what rules the agents use to create the overall behavior of the model)
+Every citizen has its own residence and company. The citizen's goal is to move back and forth between the residence and the company. If the citizen has a private car, then he commutes by his own car. Otherwise, he either takes taxi if there is one nearby or takes bus.
+
+All vehicles are running in the two-lane roads and abide by the traffic lights. Vehicles will decelerate when there are other vehicles or red light ahead, and accelerate until reaching the max speed in other situations.
+
+Taxi travels randomly from house to house when free and buses are driven alongside the its bus line continuously. Traffic lights switch periodically.
+
+Whether citizens can reach the destination as soon as possible depends on the reasonable planning of public traffic and fewer traffic congestion. User can learn about the utilization of public traffic (taxies and buses) and average commuting time by observe graphical data. 
 
 ## HOW TO USE IT
 
-(how to use the model, including a description of each of the items in the Interface tab)
+Whole system will be initialized after SETUP button is pressed. After that, user can press the GO button to start the system. 
+
+Taxies can be added by ADD TAXI button. Bus lines can be created by clicking two defferent road patches when system is running.
+
+### Plots
+Average Taxi Carring Rate  -- displays the proportion of taxies with passenger over time
+Average Bus Carring Number -- displays the average number of passengers on each bus over time
+Average Commuting Time     -- displays the average time of each commuting
 
 ## THINGS TO NOTICE
 
-(suggested things for the user to notice while running the model)
+Bus lines and taxies have to be added cautiously in case traffic jam happens frequently.
 
 ## THINGS TO TRY
 
-(suggested things for the user to try to do (move sliders, switches, etc.) with the model)
+User should schedule public traffic so that citizens don't have to walk to the destination which is pretty slow and empty loading rate should be reduced to avoid redundant vehicles causing traffic jams.
 
 ## EXTENDING THE MODEL
 
-(suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
+Since agents take up no space in NetLogo, a better way to avoid traffic collision is in demand.
+
+The implementation of two-line road can also be polished, like traffic lights of two directions and integrated turning effect.
 
 ## NETLOGO FEATURES
 
-(interesting or unusual features of NetLogo that the model uses, particularly in the Code tab; or where workarounds were needed for missing features)
+Citizens in this model use goal-based cognition.
 
 ## RELATED MODELS
 
-(models in the NetLogo Models Library and elsewhere which are of related interest)
+- "Traffic Grid": a model of traffic moving in a city grid.
 
 ## CREDITS AND REFERENCES
 
-(a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
+Github: [https://github.com/Luminoid/urban-transportation-system](https://github.com/Luminoid/urban-transportation-system)
 @#$#@#$#@
 default
 true
