@@ -264,6 +264,8 @@ to setup-map
 end
 
 to setup-citizen
+  ;;  set residence
+  ask patch-here [ set num num + 1 ]
   ;;  set company
   let my-company one-of companies with [num < company-capacity]
   if (my-company = nobody)[
@@ -278,6 +280,7 @@ to setup-citizen
       ]
     ]
     set companies (patch-set companies new-company)
+    set my-company new-company
   ]
   ask my-company [ set num num + 1 ]
 
@@ -813,7 +816,27 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to add-citizen
-
+  let my-residence one-of (residences with [num < residence-capacity])
+  if (my-residence = nobody)[
+    let new-residence one-of residence-district with [land-type = "idle-estate"]
+    ask new-residence [
+      set land-type "residence"
+      set pcolor    yellow
+      set num       0
+      sprout-vertices 1 [
+        setup-graph
+        hide-turtle
+      ]
+    ]
+    set residences (patch-set residences new-residence)
+    set my-residence new-residence
+  ]
+  ask my-residence [
+    sprout-citizens 1 [
+      setup-citizen
+    ]
+    set num num + 1
+  ]
 end
 
 to add-taxi
@@ -1089,10 +1112,10 @@ NIL
 1
 
 MONITOR
-56
-361
-113
-406
+59
+446
+116
+491
 NIL
 money
 17
@@ -1108,17 +1131,17 @@ initial-people-num
 initial-people-num
 0
 150
-54.0
+3.0
 1
 1
 NIL
 HORIZONTAL
 
 BUTTON
-47
-290
-121
-323
+45
+307
+119
+340
 Add taxi
 add-taxi
 NIL
@@ -1155,7 +1178,7 @@ has-car-ratio
 has-car-ratio
 0
 100
-0.0
+30.0
 1
 1
 NIL
@@ -1218,6 +1241,23 @@ false
 "set-plot-y-range 0 bus-capacity\n  set-plot-x-range 0 10" ""
 PENS
 "default" 1.0 0 -16777216 true "ifelse count buses > 0[\n  plot mean [count my-bus-links] of buses\n][\n  plot 0\n]\n\n" "ifelse count buses > 0[\n  plot mean [count my-bus-links] of buses\n][\n  plot 0\n]\n"
+
+BUTTON
+32
+352
+133
+385
+Add citizen
+add-citizen
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
