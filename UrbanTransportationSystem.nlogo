@@ -852,6 +852,9 @@ to add-citizen
   ask my-residence [
     sprout-citizens 1 [
       setup-citizen
+      if (trip-mode = 3)[
+        halt 2  ;; wait for the taxi
+      ]
     ]
     set num num + 1
   ]
@@ -1057,13 +1060,13 @@ to-report find-path [source target mode]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-178
+171
 10
-774
-607
+716
+556
 -1
 -1
-12.6
+10.96
 1
 10
 1
@@ -1154,7 +1157,7 @@ initial-people-num
 initial-people-num
 0
 150
-80.0
+75.0
 1
 1
 NIL
@@ -1208,10 +1211,10 @@ NIL
 HORIZONTAL
 
 PLOT
-785
-66
-1074
-221
+726
+63
+1015
+218
 Average Taxi Carring Rate
 Tick
 Rate
@@ -1226,10 +1229,10 @@ PENS
 "default" 1.0 0 -16777216 true "ifelse count taxies > 0[\n  plot (count taxies with [is-occupied? = true] + 0.0) / (count taxies) * 100\n][\n  plot 0\n]\n" "ifelse count taxies > 0[\n  plot (count taxies with [is-occupied? = true] + 0.0) / (count taxies) * 100\n][\n  plot 0\n]\n\n"
 
 MONITOR
-784
-13
-900
-58
+725
+10
+841
+55
 Number of taxies
 count taxies
 17
@@ -1237,10 +1240,10 @@ count taxies
 11
 
 MONITOR
-909
-13
-1025
-58
+850
+10
+966
+55
 Number of buses
 count buses
 17
@@ -1248,10 +1251,10 @@ count buses
 11
 
 PLOT
-785
-231
-1074
-391
+726
+228
+1015
+388
 Average Bus Carring Number
 Tick
 Number
@@ -1283,10 +1286,10 @@ NIL
 1
 
 PLOT
-787
-401
-1075
-561
+725
+397
+1015
+557
 Average Commuting Time
 Tick
 Time
