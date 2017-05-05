@@ -67,6 +67,9 @@ citizens-own[
   advance-distance
   still?
   time
+  ;; trip
+  last-commuting-time
+  commuting-counter
 ]
 
 taxies-own [
@@ -298,11 +301,13 @@ to setup-citizen
     set color    cyan
   ]
 
-  ;;  set transportation properties
-  set speed             person-speed
-  set advance-distance  0
-  set still?            false
-  set time              0
+  ;;  set other properties
+  set speed               person-speed
+  set advance-distance    0
+  set still?              false
+  set time                0
+  set last-commuting-time nobody
+  set commuting-counter   0
 
   ;;  set trip-mode
   set-trip-mode
@@ -525,6 +530,14 @@ end
 
 to set-duration
   ifelse (trip-mode = 1 or trip-mode = 2 or trip-mode = 3)[  ;; person
+    ;;  record
+    ifelse last-commuting-time = nobody [
+      set last-commuting-time commuting-counter
+    ][
+      set last-commuting-time commuting-counter - event-duration
+    ]
+    set   commuting-counter   0
+    ;;  halt
     halt event-duration
   ][
     ifelse (trip-mode = 4)[                 ;; taxi
@@ -747,7 +760,6 @@ to move
       ifelse (distance next-vertex < 0.0001) [  ;; arrived at destination
         set path []
         passengers-on-off
-
         ;; wait
         set-duration
         ;; set default shape
@@ -762,6 +774,7 @@ end
 ;;  uniform controller
 to progress
   ask citizens [
+    set commuting-counter commuting-counter + 1
     if (count bus-link-neighbors = 0)[
       watch-traffic-light
       ifelse still? [
@@ -1112,10 +1125,10 @@ NIL
 1
 
 MONITOR
-59
-446
-116
-491
+55
+450
+112
+495
 NIL
 money
 17
@@ -1131,17 +1144,17 @@ initial-people-num
 initial-people-num
 0
 150
-3.0
+60.0
 1
 1
 NIL
 HORIZONTAL
 
 BUTTON
-45
-307
-119
-340
+47
+311
+121
+344
 Add taxi
 add-taxi
 NIL
@@ -1190,7 +1203,7 @@ PLOT
 1074
 221
 Average Taxi Carring Rate
-Time
+Tick
 Rate
 0.0
 10.0
@@ -1230,7 +1243,7 @@ PLOT
 1074
 391
 Average Bus Carring Number
-Time
+Tick
 Number
 0.0
 10.0
@@ -1243,10 +1256,10 @@ PENS
 "default" 1.0 0 -16777216 true "ifelse count buses > 0[\n  plot mean [count my-bus-links] of buses\n][\n  plot 0\n]\n\n" "ifelse count buses > 0[\n  plot mean [count my-bus-links] of buses\n][\n  plot 0\n]\n"
 
 BUTTON
-32
-352
-133
-385
+34
+355
+135
+388
 Add citizen
 add-citizen
 NIL
@@ -1258,6 +1271,24 @@ NIL
 NIL
 NIL
 1
+
+PLOT
+787
+401
+1075
+561
+Average Commuting Time
+Tick
+Time
+0.0
+10.0
+0.0
+10.0
+true
+false
+"set-plot-y-range 0 count citizens\n  set-plot-x-range 0 10" ""
+PENS
+"default" 1.0 0 -16777216 true "ifelse all? citizens [last-commuting-time != nobody][\n  plot mean [last-commuting-time] of citizens\n][\n  plot 0\n]" "ifelse all? citizens [last-commuting-time != nobody][\n  plot mean [last-commuting-time] of citizens\n][\n  plot 0\n]"
 
 @#$#@#$#@
 ## WHAT IS IT?
