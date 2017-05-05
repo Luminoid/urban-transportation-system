@@ -9,7 +9,6 @@
         * [Vehicle](#vehicle)
         * [Traffic Regulation](#traffic-regulation)
         * [Principle](#principle)
-        * [Patch Color](#patch-color)
     * [Features](#features)
     * [Interaction](#interaction)
         * [Input](#input)
@@ -17,6 +16,10 @@
         * [Objective](#objective)
     * [Dependency](#dependency)
     * [Implementation](#implementation)
+        * [Object](#object)
+            * [Agent](#agent)
+            * [Environment](#environment)
+            * [Link](#link)
         * [Variables](#variables)
         * [Setup](#setup)
         * [Transportation](#transportation)
@@ -53,17 +56,6 @@ Traffic lights switch periodically.
 ### Principle
 Whether citizens are able to reach the destination as soon as possible depends on the reasonable planning of public traffic and fewer traffic congestion. User can learn about the utilization of public traffic (taxies and buses) and average commuting time by observing real-time graphical data.
 
-### Patch Color
-```
-Land        -- deeper brown
-Idle-estate -- deep brown
-Residence   -- yellow
-Company     -- blue
-Road        -- light gray
-Red light   -- red
-Green light -- green
-```
-
 ## Features
 Citizens in this model use both utility-based cognition and goal-based cognition.
 
@@ -88,7 +80,30 @@ User should schedule public traffic well so that citizens don't have to walk all
 [NetLogo 6.0.1](http://ccl.northwestern.edu/netlogo/download.shtml)
 
 ## Implementation
-The program is made up of the following five parts.
+The program is made up of the following six parts.
+
+### Object
+#### Agent
+- Model: citizen, bus, taxi
+- View: mapping-citizen, mapping-bus, mapping-taxi
+- Algorithm: vertex
+- Transportation: bus-stop
+
+#### Environment
+```
+Land        -- deeper brown
+Idle-estate -- deep brown
+Residence   -- yellow
+Company     -- blue
+Road        -- light gray
+Red light   -- red
+Green light -- green
+```
+
+#### Link
+- map-link: link model agent with view agent
+- bus-link and taxi-link: tie the passenger and the vehicle
+- edge: used in the graph algorithm
 
 ### Variables
 Define global and object variables.
