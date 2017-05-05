@@ -62,6 +62,7 @@ citizens-own[
   ;;  transportation
   trip-mode                ;;  1: take car, 2: take bus, 3: take taxi
   path
+  max-speed
   ;; round
   speed
   advance-distance
@@ -76,6 +77,7 @@ taxies-own [
   ;;  transportation
   trip-mode                ;;  4: taxi
   path
+  max-speed
   ;;  round
   is-ordered?
   is-occupied?
@@ -92,6 +94,7 @@ buses-own [
   ;;  transportation
   trip-mode                ;;  5: bus
   path
+  max-speed
   ;;  round
   num-of-passengers
   speed
@@ -152,7 +155,7 @@ to setup-globals
   set event-duration       50
   set bus-duration         2
   set taxi-duration        2
-  set buffer-distance      0.6
+  set buffer-distance      1.0
   set money                0
 end
 
@@ -301,8 +304,11 @@ to setup-citizen
     set color    cyan
   ]
 
+  ;;  set transportation properties
+  set-max-speed           person-speed
+
   ;;  set other properties
-  set speed               person-speed
+  set speed               max-speed
   set advance-distance    0
   set still?              false
   set time                0
@@ -441,18 +447,12 @@ to passengers-on-off
 end
 
 ;;  set
-to set-speed
-  let max-speed person-speed
-  ifelse (trip-mode = 1 or trip-mode = 3 or trip-mode = 4) [
-    set max-speed car-speed
-  ][
-    ifelse (trip-mode = 2) [
-      set max-speed person-speed
-    ][
-      set max-speed bus-speed
-    ]
-  ]
+to set-max-speed [avg-max-speed]
+  set max-speed           random-normal avg-max-speed (avg-max-speed * 0.1)
+  if max-speed <= 0       [ set max-speed avg-max-speed ]
+end
 
+to set-speed
   ;; agent can only see one patch ahead of it
   let controller      self
   let this            one-of map-link-neighbors
@@ -509,7 +509,7 @@ to set-speed
       set speed 0
     ][
       set safe-distance safe-distance - buffer-distance
-      ifelse max-speed > safe-distance[
+      ifelse speed > safe-distance[                  ;;  decelerate
         let next-speed speed - deceleration
         ifelse (next-speed < 0)[
           set speed 0
@@ -517,11 +517,13 @@ to set-speed
           set speed next-speed
         ]
       ][
-        let next-speed speed + acceleration
-        ifelse (next-speed > max-speed)[
-          set speed max-speed
-        ][
-          set speed next-speed
+        if speed + acceleration < safe-distance[ ;;  accelerate
+          let next-speed speed + acceleration
+          ifelse (next-speed > max-speed)[
+            set speed max-speed
+          ][
+            set speed next-speed
+          ]
         ]
       ]
     ]
@@ -570,6 +572,7 @@ to set-trip-mode
   if breed = citizens [
     ifelse has-car? [
       set trip-mode 1
+      set-max-speed car-speed
     ][
       let target-taxi find-taxi
       ifelse (target-taxi != nobody) [
@@ -594,6 +597,7 @@ to set-trip-mode
         set trip-mode 3
       ][
         set trip-mode 2
+        set-max-speed person-speed
       ]
     ]
   ]
@@ -867,10 +871,12 @@ to add-taxi
       ]
       set trip-mode          4
       set path               find-path departure destination trip-mode
+      set-max-speed          car-speed
+
       ;;  round
       set is-ordered?        false
       set is-occupied?       false
-      set speed              bus-speed
+      set speed              max-speed
       set still?             false
       set time               0
       ;; set parameters for the mapping taxi
@@ -930,7 +936,10 @@ to add-bus-stop
       set terminal-station   terminal-station-vertex
       ;; set transportation properties
       set num-of-passengers  0
-      set speed              bus-speed
+      set-max-speed          bus-speed
+
+      ;; set other properties
+      set speed              max-speed
       set still?             false
       set time               0
       set trip-mode          5
@@ -1191,7 +1200,7 @@ has-car-ratio
 has-car-ratio
 0
 100
-30.0
+100.0
 1
 1
 NIL
@@ -1293,7 +1302,7 @@ PENS
 @#$#@#$#@
 ## WHAT IS IT?
 
-This is an urban transportation model simulating citizens' commuting by private cars, taxies and buses. It contains four subdivision systems: citizens, taxies, buses and traffic lights. User can manipulate this transportation system by setting the number of citizens, regulating the number of taxies and creating bus lines.
+This is an urban transportation model simulating citizens' commuting by private cars, taxies and buses. It contains four subdivision systems: citizens, taxies, buses and traffic lights. User can manipulate this transportation system by setting the number of citizens, regulating the number of taxies and creating bus lines. This model simulates the real world transportation system which reveals the importance of public traffic.
 
 ## HOW IT WORKS
 
@@ -1356,7 +1365,7 @@ More vehicle types and terrain can be included.
 
 ## NETLOGO FEATURES
 
-Citizens in this model use goal-based cognition.
+Citizens in this model use both utility-based cognition and goal-based cognition.
 
 ## RELATED MODELS
 
