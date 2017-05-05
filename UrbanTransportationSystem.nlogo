@@ -11,7 +11,7 @@ undirected-link-breed [bus-links   bus-link]   ;; link between bus and passenger
 undirected-link-breed [taxi-links  taxi-link]  ;; link between taxi and passenger
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Variables
+;; Attribute
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 globals[
@@ -1063,7 +1063,7 @@ GRAPHICS-WINDOW
 607
 -1
 -1
-12.0
+12.6
 1
 10
 1
@@ -1154,7 +1154,7 @@ initial-people-num
 initial-people-num
 0
 150
-60.0
+80.0
 1
 1
 NIL
