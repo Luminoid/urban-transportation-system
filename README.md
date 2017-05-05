@@ -29,6 +29,7 @@
             * [Plot](#plot)
         * [Algorithm](#algorithm)
     * [Deficiency](#deficiency)
+    * [TODO](#todo)
 
 <!-- tocstop -->
 
@@ -132,3 +133,7 @@ Every time an agent wants to know a path from origin to destination, the program
 - Limited by the implementation and language capacity, detecting vehicles ahead is troublesome which makes animation of acceleration and deceleration coarse
 - Since agents don't take up space in NetLogo but their images do, images may overlap, which looks like an traffic collision
 - Limited by the implementation of two-lane road, traffic light is not bidirectional and turning animation seems abrupt
+
+## TODO
+- Considering the time scale of the model, plot should be updated every ten ticks instead of one
+- The most efficient taxi-detect-distance (maximize the Taxi Carrying Rate) could be found using BehaviorSpace
