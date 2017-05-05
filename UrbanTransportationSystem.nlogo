@@ -25,7 +25,7 @@ globals[
   ;;  interaction
   mouse-was-down?
   ;;  time control
-  traffic-light-cycle
+;  traffic-light-cycle
   traffic-light-count
   ;;  transportation
   person-speed             ;;  person
@@ -142,7 +142,7 @@ to setup-config
   set residence-capacity   1
   set bus-capacity         4
   set mouse-was-down?      false
-  set traffic-light-cycle  10
+;  set traffic-light-cycle  10
   set traffic-light-count  traffic-light-cycle
 end
 
@@ -308,7 +308,7 @@ to setup-citizen
   set-max-speed           person-speed
 
   ;;  set other properties
-  set speed               max-speed
+  set speed               0
   set advance-distance    0
   set still?              false
   set time                0
@@ -595,6 +595,7 @@ to set-trip-mode
           ]
         ]
         set trip-mode 3
+        set-max-speed car-speed
       ][
         set trip-mode 2
         set-max-speed person-speed
@@ -876,7 +877,7 @@ to add-taxi
       ;;  round
       set is-ordered?        false
       set is-occupied?       false
-      set speed              max-speed
+      set speed              0
       set still?             false
       set time               0
       ;; set parameters for the mapping taxi
@@ -939,7 +940,7 @@ to add-bus-stop
       set-max-speed          bus-speed
 
       ;; set other properties
-      set speed              max-speed
+      set speed              0
       set still?             false
       set time               0
       set trip-mode          5
@@ -1083,10 +1084,10 @@ ticks
 30.0
 
 BUTTON
-49
-131
-117
-164
+47
+192
+115
+225
 NIL
 setup
 NIL
@@ -1100,10 +1101,10 @@ NIL
 1
 
 BUTTON
-49
-176
-117
-209
+47
+237
+115
+270
 NIL
 go
 T
@@ -1117,10 +1118,10 @@ NIL
 1
 
 BUTTON
-43
-224
-124
-257
+41
+285
+122
+318
 go once
 go
 NIL
@@ -1134,10 +1135,10 @@ NIL
 1
 
 MONITOR
-55
-450
-112
-495
+53
+511
+110
+556
 NIL
 money
 17
@@ -1160,10 +1161,10 @@ NIL
 HORIZONTAL
 
 BUTTON
-47
-311
-121
-344
+45
+372
+119
+405
 Add taxi
 add-taxi
 NIL
@@ -1200,7 +1201,7 @@ has-car-ratio
 has-car-ratio
 0
 100
-100.0
+30.0
 1
 1
 NIL
@@ -1265,10 +1266,10 @@ PENS
 "default" 1.0 0 -16777216 true "ifelse count buses > 0[\n  plot mean [count my-bus-links] of buses\n][\n  plot 0\n]\n\n" "ifelse count buses > 0[\n  plot mean [count my-bus-links] of buses\n][\n  plot 0\n]\n"
 
 BUTTON
-34
-355
-135
-388
+32
+416
+133
+449
 Add citizen
 add-citizen
 NIL
@@ -1298,6 +1299,21 @@ false
 "set-plot-y-range 0 count citizens\n  set-plot-x-range 0 10" ""
 PENS
 "default" 1.0 0 -16777216 true "ifelse all? citizens [last-commuting-time != nobody][\n  plot mean [last-commuting-time] of citizens\n][\n  plot 0\n]" "ifelse all? citizens [last-commuting-time != nobody][\n  plot mean [last-commuting-time] of citizens\n][\n  plot 0\n]"
+
+SLIDER
+3
+124
+163
+157
+traffic-light-cycle
+traffic-light-cycle
+0
+25
+12.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
