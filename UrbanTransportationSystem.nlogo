@@ -50,6 +50,10 @@ globals[
   ;;  patch
   global-origin-station
   global-terminal-station
+  ;;  Analysis
+  average-taxi-carring-rate-list
+  average-commuting-time-list
+  average-bus-carring-number-list
 ]
 
 citizens-own[
@@ -826,6 +830,8 @@ to go
   progress
   mouse-manager
   change-traffic-light
+  record-data
+  update-plot
   tick
 end
 
@@ -998,6 +1004,84 @@ to mouse-manager
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Analysis
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to record-data
+  ;;  taxi
+  if count taxies > 0 [
+    let average-taxi-carring-rate ((count taxies with [is-occupied? = true] + 0.0) / (count taxies) * 100)
+    ifelse is-list? average-taxi-carring-rate-list [
+      set average-taxi-carring-rate-list
+      fput average-taxi-carring-rate average-taxi-carring-rate-list
+    ][
+      set average-taxi-carring-rate-list
+      (list average-taxi-carring-rate)
+    ]
+  ]
+
+  ;;  bus
+  if count buses > 0[
+    let average-bus-carring-number mean [count my-bus-links] of buses
+    ifelse is-list? average-bus-carring-number-list [
+      set average-bus-carring-number-list
+      fput average-bus-carring-number average-bus-carring-number-list
+    ][
+      set average-bus-carring-number-list
+      (list average-bus-carring-number)
+    ]
+  ]
+
+  ;;  citizen
+  if (all? citizens [last-commuting-time != nobody])[
+    let average-commuting-time mean [last-commuting-time] of citizens
+    ifelse is-list? average-commuting-time-list [
+      set average-commuting-time-list
+      fput average-commuting-time average-commuting-time-list
+    ][
+      set average-commuting-time-list
+      (list average-commuting-time)
+    ]
+  ]
+end
+
+to update-plot
+  if (ticks mod 10 = 0) [
+    ;;  taxi
+    if is-list? average-taxi-carring-rate-list and (length average-taxi-carring-rate-list >= 100) [
+      set-current-plot "Average Taxi Carring Rate"
+      plot mean sublist average-taxi-carring-rate-list 0 100
+    ]
+    ;;  bus
+    if is-list? average-bus-carring-number-list and (length average-bus-carring-number-list >= 100) [
+      set-current-plot "Average Bus Carring Number"
+      plot mean sublist average-bus-carring-number-list 0 100
+    ]
+    ;;  citizen
+    if is-list? average-commuting-time-list and (length average-commuting-time-list >= 100) [
+      set-current-plot "Average Commuting Time"
+      plot mean sublist average-commuting-time-list 0 100
+    ]
+  ]
+end
+
+to-report analyze-citizen
+  ifelse is-list? average-commuting-time-list [
+    report mean average-commuting-time-list
+  ][
+    report 0
+  ]
+end
+
+to-report analyze-taxi
+  ifelse is-list? average-taxi-carring-rate-list [
+    report mean average-taxi-carring-rate-list
+  ][
+    report 0
+  ]
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Algorithm
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1087,10 +1171,10 @@ ticks
 30.0
 
 BUTTON
-47
-192
-115
-225
+46
+179
+114
+212
 NIL
 setup
 NIL
@@ -1104,10 +1188,10 @@ NIL
 1
 
 BUTTON
-47
-237
-115
-270
+46
+224
+114
+257
 NIL
 go
 T
@@ -1121,10 +1205,10 @@ NIL
 1
 
 BUTTON
-41
-285
-122
-318
+40
+268
+121
+301
 go once
 go
 NIL
@@ -1138,10 +1222,10 @@ NIL
 1
 
 MONITOR
-53
-511
-110
-556
+51
+481
+108
+526
 NIL
 money
 17
@@ -1157,17 +1241,17 @@ initial-people-num
 initial-people-num
 0
 150
-75.0
+30.0
 1
 1
 NIL
 HORIZONTAL
 
 BUTTON
-45
-372
-119
-405
+43
+338
+117
+371
 Add taxi
 add-taxi
 NIL
@@ -1216,7 +1300,7 @@ PLOT
 1015
 218
 Average Taxi Carring Rate
-Tick
+Time
 Rate
 0.0
 10.0
@@ -1226,7 +1310,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "ifelse count taxies > 0[\n  plot (count taxies with [is-occupied? = true] + 0.0) / (count taxies) * 100\n][\n  plot 0\n]\n" "ifelse count taxies > 0[\n  plot (count taxies with [is-occupied? = true] + 0.0) / (count taxies) * 100\n][\n  plot 0\n]\n\n"
+"taxi" 1.0 0 -16777216 true "\n" "\n\n"
 
 MONITOR
 725
@@ -1256,7 +1340,7 @@ PLOT
 1015
 388
 Average Bus Carring Number
-Tick
+Time
 Number
 0.0
 10.0
@@ -1266,13 +1350,13 @@ true
 false
 "set-plot-y-range 0 bus-capacity\n  set-plot-x-range 0 10" ""
 PENS
-"default" 1.0 0 -16777216 true "ifelse count buses > 0[\n  plot mean [count my-bus-links] of buses\n][\n  plot 0\n]\n\n" "ifelse count buses > 0[\n  plot mean [count my-bus-links] of buses\n][\n  plot 0\n]\n"
+"bus" 1.0 0 -16777216 true "\n\n" "\n"
 
 BUTTON
-32
-416
-133
-449
+30
+382
+131
+415
 Add citizen
 add-citizen
 NIL
@@ -1291,7 +1375,7 @@ PLOT
 1015
 557
 Average Commuting Time
-Tick
+Time
 Time
 0.0
 10.0
@@ -1301,7 +1385,7 @@ true
 false
 "set-plot-y-range 0 count citizens\n  set-plot-x-range 0 10" ""
 PENS
-"default" 1.0 0 -16777216 true "ifelse all? citizens [last-commuting-time != nobody][\n  plot mean [last-commuting-time] of citizens\n][\n  plot 0\n]" "ifelse all? citizens [last-commuting-time != nobody][\n  plot mean [last-commuting-time] of citizens\n][\n  plot 0\n]"
+"citizen" 1.0 0 -16777216 true "" ""
 
 SLIDER
 3
@@ -1776,18 +1860,28 @@ NetLogo 6.0
 @#$#@#$#@
 @#$#@#$#@
 <experiments>
-  <experiment name="experiment" repetitions="1" runMetricsEveryStep="true">
-    <setup>setup</setup>
+  <experiment name="transportation experiment" repetitions="2" runMetricsEveryStep="true">
+    <setup>setup
+repeat 6 [add-taxi]</setup>
     <go>go</go>
-    <metric>count turtles</metric>
+    <timeLimit steps="6000"/>
+    <metric>analyze-citizen</metric>
+    <metric>analyze-taxi</metric>
     <enumeratedValueSet variable="initial-people-num">
-      <value value="54"/>
+      <value value="50"/>
+      <value value="100"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="taxi-detect-distance">
-      <value value="12"/>
+      <value value="4"/>
+      <value value="8"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="has-car-ratio">
       <value value="0"/>
+      <value value="25"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="traffic-light-cycle">
+      <value value="4"/>
+      <value value="8"/>
     </enumeratedValueSet>
   </experiment>
 </experiments>

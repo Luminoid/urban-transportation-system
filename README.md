@@ -73,6 +73,7 @@ Average Taxi Carrying Rate  -- displays the proportion of taxies with passenger 
 Average Bus Carrying Number -- displays the average number of passengers on each bus over time
 Average Commuting Time      -- displays the average time of each commuting
 ```
+Plots update every ten ticks and record the mean value of past 100 ticks.
 
 ### Objective
 User should schedule public traffic well so that citizens don't have to walk all the way to the destination which is pretty inefficient and empty loading rate should be reduced to avoid redundant vehicles causing traffic jams.
@@ -135,5 +136,4 @@ Every time an agent wants to know a path from origin to destination, the program
 - Limited by the implementation of two-lane road, traffic light is not bidirectional and turning animation seems abrupt
 
 ## TODO
-- Considering the time scale of the model, plot should be updated every ten ticks instead of one
 - The most efficient taxi-detect-distance (maximize the Taxi Carrying Rate) could be found using BehaviorSpace
