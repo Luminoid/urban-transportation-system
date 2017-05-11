@@ -11,7 +11,7 @@ undirected-link-breed [bus-links   bus-link]   ;; link between bus and passenger
 undirected-link-breed [taxi-links  taxi-link]  ;; link between taxi and passenger
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Attribute
+;; Variables
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 globals[
@@ -1240,8 +1240,8 @@ SLIDER
 initial-people-num
 initial-people-num
 0
-150
-30.0
+200
+80.0
 1
 1
 NIL
@@ -1273,7 +1273,7 @@ taxi-detect-distance
 taxi-detect-distance
 0
 50
-12.0
+15.0
 1
 1
 NIL
@@ -1383,7 +1383,7 @@ Time
 10.0
 true
 false
-"set-plot-y-range 0 count citizens\n  set-plot-x-range 0 10" ""
+"" ""
 PENS
 "citizen" 1.0 0 -16777216 true "" ""
 
@@ -1396,7 +1396,7 @@ traffic-light-cycle
 traffic-light-cycle
 0
 25
-12.0
+14.0
 1
 1
 NIL
@@ -1860,7 +1860,7 @@ NetLogo 6.0
 @#$#@#$#@
 @#$#@#$#@
 <experiments>
-  <experiment name="transportation experiment" repetitions="2" runMetricsEveryStep="true">
+  <experiment name="transportation experiment" repetitions="1" runMetricsEveryStep="false">
     <setup>setup
 repeat 6 [add-taxi]</setup>
     <go>go</go>
@@ -1868,20 +1868,26 @@ repeat 6 [add-taxi]</setup>
     <metric>analyze-citizen</metric>
     <metric>analyze-taxi</metric>
     <enumeratedValueSet variable="initial-people-num">
-      <value value="50"/>
-      <value value="100"/>
+      <value value="20"/>
+      <value value="200"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="taxi-detect-distance">
       <value value="4"/>
       <value value="8"/>
+      <value value="12"/>
+      <value value="16"/>
+      <value value="20"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="has-car-ratio">
       <value value="0"/>
-      <value value="25"/>
+      <value value="100"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="traffic-light-cycle">
       <value value="4"/>
       <value value="8"/>
+      <value value="12"/>
+      <value value="16"/>
+      <value value="20"/>
     </enumeratedValueSet>
   </experiment>
 </experiments>
